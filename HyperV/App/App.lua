@@ -29,6 +29,7 @@ App.__index = App
 
 local DEFAULT_WINDOW_MARGIN = 24
 local MIN_WINDOW_SIZE = Vector2.new(360, 260)
+local getViewportSize
 
 local function computeWhitespaceScale(): number
 	local viewport = getViewportSize()
@@ -59,7 +60,7 @@ local function createScreenGui(name: string): ScreenGui
 	return screenGui
 end
 
-local function getViewportSize(): Vector2
+function getViewportSize(): Vector2
 	local camera = workspace.CurrentCamera
 	if camera then
 		return camera.ViewportSize
