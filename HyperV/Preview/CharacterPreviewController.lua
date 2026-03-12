@@ -482,18 +482,20 @@ function CharacterPreviewController:_updateCamera(snapshot: CharacterPreviewConf
 	local radius = orbit.radius
 	local height = orbit.height
 	local lookTarget = pivot + Vector3.new(0, 1, 0)
+	local baseVerticalOffset = 0
 
 	if self.previewCharacter then
 		local _, size = self.previewCharacter:GetBoundingBox()
 		radius = math.max(radius, math.max(size.X, size.Z) * 1.15 + (size.Y * 0.55))
-		height = math.max(height, size.Y * 0.18)
-		lookTarget = pivot + Vector3.new(0, size.Y * 0.1, 0)
+		baseVerticalOffset = size.Y * 0.18
+		height = math.max(height, 0.35)
+		lookTarget = pivot + Vector3.new(0, size.Y * 0.12, 0)
 	end
 
 	self._view.camera.FieldOfView = 40
 	local x = radius * math.cos(orbit.angle)
 	local z = radius * math.sin(orbit.angle)
-	local cameraPosition = pivot + Vector3.new(x, height, z)
+	local cameraPosition = pivot + Vector3.new(x, baseVerticalOffset + height, z)
 	self._view.camera.CFrame = CFrame.lookAt(cameraPosition, lookTarget)
 end
 
@@ -531,7 +533,7 @@ function CharacterPreviewController:_onRotateMove(position: Vector3)
 	self.state:update({
 		orbit = {
 			angle = snapshot.orbit.angle - (delta.X * 0.01),
-			height = snapshot.orbit.height + (delta.Y * 0.01),
+			height = math.clamp(snapshot.orbit.height - (delta.Y * 0.005), 0.35, 2.4),
 		},
 	})
 end

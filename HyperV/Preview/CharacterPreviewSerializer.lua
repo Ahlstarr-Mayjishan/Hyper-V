@@ -200,7 +200,7 @@ function Serializer.normalize(config: any): CharacterPreviewConfig
 	merged.transparency = roundTo(clamp01(tonumber(merged.transparency) or defaults.transparency), 0.01)
 	merged.orbit.angle = roundTo(tonumber(merged.orbit.angle) or defaults.orbit.angle, 0.001)
 	merged.orbit.radius = roundTo(math.max(3, tonumber(merged.orbit.radius) or defaults.orbit.radius), 0.01)
-	merged.orbit.height = roundTo(math.clamp(tonumber(merged.orbit.height) or defaults.orbit.height, -2, 6), 0.01)
+	merged.orbit.height = roundTo(math.clamp(tonumber(merged.orbit.height) or defaults.orbit.height, 0.35, 2.4), 0.01)
 	merged.orbit.autoRotate = merged.orbit.autoRotate ~= false
 	merged.orbit.speed = roundTo(math.clamp(tonumber(merged.orbit.speed) or defaults.orbit.speed, 0, 6), 0.01)
 
