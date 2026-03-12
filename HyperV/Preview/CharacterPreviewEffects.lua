@@ -110,6 +110,44 @@ function Effects.ensurePreviewStage(worldModel: WorldModel, cache)
 	return stage
 end
 
+function Effects.restoreBaseVisualState(cache)
+	local transparencyOriginals = cache.transparencyOriginals
+	if transparencyOriginals then
+		for instance, originalTransparency in pairs(transparencyOriginals) do
+			if typeof(instance) == "Instance" and instance.Parent and instance:IsA("BasePart") then
+				instance.LocalTransparencyModifier = 0
+				instance.Transparency = originalTransparency
+			end
+		end
+	end
+
+	local decalOriginals = cache.decalOriginals
+	if decalOriginals then
+		for instance, originalTransparency in pairs(decalOriginals) do
+			if typeof(instance) == "Instance" and instance.Parent and (instance:IsA("Decal") or instance:IsA("Texture")) then
+				instance.Transparency = originalTransparency
+			end
+		end
+	end
+
+	local charmsOriginalColors = cache.charmsOriginalColors
+	local charmsOriginalTransparency = cache.charmsOriginalTransparency
+	if charmsOriginalColors then
+		for instance, originalColor in pairs(charmsOriginalColors) do
+			if typeof(instance) == "Instance" and instance.Parent and instance:IsA("BasePart") then
+				instance.Color = originalColor
+				if charmsOriginalTransparency and charmsOriginalTransparency[instance] ~= nil then
+					instance.Transparency = charmsOriginalTransparency[instance]
+				end
+			end
+		end
+	end
+
+	if cache.highlight then
+		cache.highlight.Enabled = false
+	end
+end
+
 function Effects.applyTransparency(model: Model, value: number, cache)
 	cache.transparencyOriginals = cache.transparencyOriginals or setmetatable({}, { __mode = "k" })
 	cache.decalOriginals = cache.decalOriginals or setmetatable({}, { __mode = "k" })

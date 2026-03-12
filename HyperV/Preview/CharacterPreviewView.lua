@@ -87,25 +87,45 @@ end
 local function createToggle(parent: Instance, toolkit, theme, titleText: string, onChanged: (boolean) -> ())
 	local row = createRow(parent, theme, titleText)
 	local button = Instance.new("TextButton")
-	button.Size = UDim2.new(0, 72, 0, 22)
-	button.Position = UDim2.new(1, -72, 0.5, -11)
-	button.BackgroundColor3 = theme.Second
+	button.Size = UDim2.new(0, 42, 0, 22)
+	button.Position = UDim2.new(1, -42, 0.5, -11)
+	button.BackgroundTransparency = 1
 	button.BorderSizePixel = 0
-	button.TextSize = 11
-	button.Font = Enum.Font.GothamBold
-	button:SetAttribute("HyperVRole", "ToggleButton")
+	button.Text = ""
 	button.Parent = row
-	toolkit:CreateCorner(button, 6)
+
+	local track = Instance.new("Frame")
+	track.Size = UDim2.new(1, 0, 1, 0)
+	track.BackgroundColor3 = theme.Second
+	track.BorderSizePixel = 0
+	track:SetAttribute("HyperVRole", "ToggleTrack")
+	track.Parent = button
+	toolkit:CreateCorner(track, 11)
+
+	local trackStroke = toolkit:CreateStroke(track, theme.Border)
+	if trackStroke then
+		trackStroke.Transparency = 0.35
+	end
+
+	local thumb = Instance.new("Frame")
+	thumb.Size = UDim2.new(0, 16, 0, 16)
+	thumb.Position = UDim2.new(0, 3, 0.5, -8)
+	thumb.BackgroundColor3 = Color3.new(1, 1, 1)
+	thumb.BorderSizePixel = 0
+	thumb:SetAttribute("HyperVRole", "ToggleThumb")
+	thumb.Parent = track
+	toolkit:CreateCorner(thumb, 8)
 
 	local control = {}
 	function control:setValue(value: boolean)
-		button.Text = if value then "ON" else "OFF"
-		button.BackgroundColor3 = if value then theme.Accent else theme.Second
-		button.TextColor3 = if value then Color3.new(1, 1, 1) else theme.Text
+		track.BackgroundColor3 = if value then theme.Accent else theme.Second
+		thumb.Position = if value
+			then UDim2.new(1, -19, 0.5, -8)
+			else UDim2.new(0, 3, 0.5, -8)
 	end
 
 	button.MouseButton1Click:Connect(function()
-		local nextValue = button.Text ~= "ON"
+		local nextValue = thumb.Position.X.Scale == 0
 		control:setValue(nextValue)
 		onChanged(nextValue)
 	end)
@@ -926,10 +946,19 @@ function CharacterPreviewView:applyTheme(theme)
 			descendant.TextColor3 = theme.TitleText
 		elseif role == "FieldLabel" and descendant:IsA("TextLabel") then
 			descendant.TextColor3 = theme.Text
-		elseif role == "ToggleButton" and descendant:IsA("TextButton") then
-			local isOn = descendant.Text == "ON"
+		elseif role == "ToggleTrack" and descendant:IsA("Frame") then
+			local thumb = descendant:FindFirstChild("Frame")
+			local isOn = false
+			if thumb and thumb:IsA("Frame") then
+				isOn = thumb.Position.X.Scale > 0
+			end
 			descendant.BackgroundColor3 = if isOn then theme.Accent else theme.Second
-			descendant.TextColor3 = if isOn then Color3.new(1, 1, 1) else theme.Text
+			local stroke = descendant:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = theme.Border
+			end
+		elseif role == "ToggleThumb" and descendant:IsA("Frame") then
+			descendant.BackgroundColor3 = Color3.new(1, 1, 1)
 		elseif role == "FieldInput" and (descendant:IsA("TextBox") or descendant:IsA("TextButton")) then
 			descendant.BackgroundColor3 = theme.Second
 			descendant.TextColor3 = theme.Text

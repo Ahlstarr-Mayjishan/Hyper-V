@@ -70,16 +70,18 @@ function Scan-Patterns {
 		[string[]]$Lines
 	)
 
+	$isPackageInit = [System.IO.Path]::GetFileNameWithoutExtension($FilePath) -eq "init"
+
 	for ($index = 0; $index -lt $Lines.Length; $index++) {
 		$lineNumber = $index + 1
 		$line = $Lines[$index]
 		$relative = Get-RelativePath $FilePath
 
-		if ($line -match 'require\(script\.(types|pool|collectors|strategies)(\.|\))') {
+		if (-not $isPackageInit -and $line -match 'require\(script\.(types|pool|collectors|strategies)(\.|\))') {
 			Add-Finding "error" $relative $lineNumber "bad-relative-require" "Use script.Parent for sibling modules or folders under a ModuleScript."
 		}
 
-		if ($line -match 'require\(script\.[A-Za-z_][A-Za-z0-9_]*\)') {
+		if (-not $isPackageInit -and $line -match 'require\(script\.[A-Za-z_][A-Za-z0-9_]*\)') {
 			Add-Finding "warning" $relative $lineNumber "bare-script-require" "Bare require(script.X) is fragile in Rojo/Studio; verify X is a real child of the ModuleScript, not a sibling."
 		}
 

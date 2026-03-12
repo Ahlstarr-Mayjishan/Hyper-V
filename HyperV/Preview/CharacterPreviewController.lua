@@ -510,6 +510,7 @@ function CharacterPreviewController:_applyVisuals(snapshot: CharacterPreviewConf
 	end
 
 	self._view:setStatus(nil)
+	Effects.restoreBaseVisualState(self._effectCache)
 	Effects.applyTransparency(self.previewCharacter, snapshot.transparency, self._effectCache)
 	Effects.applyCharms(self.previewCharacter, snapshot.charms, self._effectCache, snapshot.transparency)
 	Effects.applyHighlight(self.previewCharacter, snapshot.highlight, self._effectCache)
