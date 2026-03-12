@@ -185,6 +185,7 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 			originalTransparency = part.Transparency
 			cache.baselinePartTransparency[part] = originalTransparency
 		end
+		part.Transparency = originalTransparency
 		local appliedTransparency = transparencyValue
 
 		if part.Name == "Head" then
@@ -195,8 +196,7 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 			appliedTransparency *= 0.82
 		end
 
-		part.LocalTransparencyModifier = 0
-		part.Transparency = originalTransparency + ((1 - originalTransparency) * appliedTransparency)
+		part.LocalTransparencyModifier = appliedTransparency
 	end)
 
 	for _, descendant in ipairs(model:GetDescendants()) do
@@ -237,10 +237,11 @@ function Effects.applyCharms(model: Model, config, cache, baseTransparency: numb
 						originalTransparency = descendant.Transparency
 						cache.baselinePartTransparency[descendant] = originalTransparency
 					end
+					descendant.Transparency = originalTransparency
 					if config.visible then
-						descendant.Transparency = originalTransparency + ((1 - originalTransparency) * (transparencyValue * 0.82))
+						descendant.LocalTransparencyModifier = transparencyValue * 0.82
 					else
-						descendant.Transparency = 1
+						descendant.LocalTransparencyModifier = 1
 					end
 					if config.tintEnabled then
 						descendant.Color = config.tintColor
