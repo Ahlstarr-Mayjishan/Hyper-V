@@ -136,6 +136,7 @@ local function buildClassicPreviewHead(model: Model)
 
 	local classicHead = Instance.new("Part")
 	classicHead.Name = "PreviewClassicHead"
+	classicHead:SetAttribute("HyperVPreviewHead", true)
 	classicHead.Size = originalHead.Size
 	classicHead.CFrame = originalHead.CFrame
 	classicHead.Color = originalHead.Color
@@ -153,6 +154,7 @@ local function buildClassicPreviewHead(model: Model)
 
 	local face = Instance.new("Decal")
 	face.Name = "Face"
+	face:SetAttribute("HyperVPreviewFace", true)
 	face.Face = Enum.NormalId.Front
 	face.Texture = getClassicFaceTexture(originalHead)
 	face.Parent = classicHead

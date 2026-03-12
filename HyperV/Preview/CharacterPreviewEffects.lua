@@ -188,7 +188,7 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 		part.Transparency = originalTransparency
 		local appliedTransparency = transparencyValue
 
-		if part.Name == "Head" then
+		if part.Name == "Head" or part:GetAttribute("HyperVPreviewHead") == true then
 			appliedTransparency *= 0.9
 		end
 
@@ -207,7 +207,9 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 				cache.baselineDecalTransparency[descendant] = originalTransparency
 			end
 			local appliedTransparency = transparencyValue
-			if descendant.Name == "face" or descendant.Name == "Face" then
+			if descendant:GetAttribute("HyperVPreviewFace") == true then
+				appliedTransparency *= 0.35
+			elseif descendant.Name == "face" or descendant.Name == "Face" then
 				appliedTransparency *= 0.72
 			end
 
