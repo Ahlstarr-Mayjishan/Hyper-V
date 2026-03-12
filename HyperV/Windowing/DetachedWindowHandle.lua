@@ -16,6 +16,8 @@ function DetachedWindowHandle.new(config, context)
 	self.parentFrame = config.Parent
 	self._context = context
 	self._content = config.Content
+	self._minSize = config.MinSize or Vector2.new(420, 320)
+	self._maxSize = config.MaxSize or Vector2.new(1440, 1040)
 
 	local legacy = LegacyDetachedWindow.new({
 		Name = self.id,
@@ -45,7 +47,52 @@ function DetachedWindowHandle.new(config, context)
 	self._legacy = legacy
 	self.view = legacy.Frame
 	self.contentFrame = legacy.Content
+	self._resizeRight = Instance.new("Frame")
+	self._resizeRight.Name = "ResizeRight"
+	self._resizeRight.Size = UDim2.new(0, 10, 1, -12)
+	self._resizeRight.Position = UDim2.new(1, -10, 0, 0)
+	self._resizeRight.BackgroundTransparency = 1
+	self._resizeRight.BorderSizePixel = 0
+	self._resizeRight.Active = true
+	self._resizeRight.Parent = self.view
+
+	self._resizeBottom = Instance.new("Frame")
+	self._resizeBottom.Name = "ResizeBottom"
+	self._resizeBottom.Size = UDim2.new(1, -12, 0, 10)
+	self._resizeBottom.Position = UDim2.new(0, 0, 1, -10)
+	self._resizeBottom.BackgroundTransparency = 1
+	self._resizeBottom.BorderSizePixel = 0
+	self._resizeBottom.Active = true
+	self._resizeBottom.Parent = self.view
+
+	self._resizeCorner = Instance.new("Frame")
+	self._resizeCorner.Name = "ResizeCorner"
+	self._resizeCorner.Size = UDim2.new(0, 18, 0, 18)
+	self._resizeCorner.Position = UDim2.new(1, -18, 1, -18)
+	self._resizeCorner.BackgroundColor3 = context.theme.Second
+	self._resizeCorner.BackgroundTransparency = 0.15
+	self._resizeCorner.BorderSizePixel = 0
+	self._resizeCorner.Active = true
+	self._resizeCorner.Parent = self.view
+	context.toolkit:CreateCorner(self._resizeCorner, 6)
+
+	self._resizeCleanup = context.toolkit:MakeResizable(self.view, {
+		corner = self._resizeCorner,
+		right = self._resizeRight,
+		bottom = self._resizeBottom,
+	}, {
+		minSize = self._minSize,
+		maxSize = self._maxSize,
+		onResize = function(_, nextSize)
+			self:_setBaseSize(nextSize)
+		end,
+	})
 	return self
+end
+
+function DetachedWindowHandle:_setBaseSize(nextSize: Vector2)
+	self._baseSize = nextSize
+	self.view.Size = UDim2.new(0, nextSize.X, 0, nextSize.Y)
 end
 
 function DetachedWindowHandle:dock(target)
@@ -86,6 +133,9 @@ function DetachedWindowHandle:applyTheme(theme)
 	if self._legacy.CloseButton then
 		self._legacy.CloseButton.BackgroundColor3 = theme.Second
 	end
+	if self._resizeCorner then
+		self._resizeCorner.BackgroundColor3 = theme.Second
+	end
 	if self._legacy.DockMenu then
 		self._legacy.DockMenu.BackgroundColor3 = theme.Default
 		for _, child in ipairs(self._legacy.DockMenu:GetChildren()) do
@@ -116,6 +166,10 @@ function DetachedWindowHandle:dispose()
 	if self._responsiveCleanup then
 		self._responsiveCleanup()
 		self._responsiveCleanup = nil
+	end
+	if self._resizeCleanup then
+		self._resizeCleanup()
+		self._resizeCleanup = nil
 	end
 	self._legacy:Destroy()
 end

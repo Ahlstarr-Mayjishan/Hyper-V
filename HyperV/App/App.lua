@@ -139,6 +139,7 @@ local function attachResponsiveWindow(handle, baseSize: Vector2, margin: number?
 	local safeMargin = margin or DEFAULT_WINDOW_MARGIN
 	local uiScale = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
 	uiScale.Parent = frame
+	handle._baseSize = baseSize
 
 	local applying = false
 	local viewportConnection = nil
@@ -149,11 +150,12 @@ local function attachResponsiveWindow(handle, baseSize: Vector2, margin: number?
 		end
 
 		applying = true
+		local targetSize = handle._baseSize or baseSize
 		local viewport = getViewportSize()
 		local availableWidth = math.max(MIN_WINDOW_SIZE.X, viewport.X - (safeMargin * 2))
 		local availableHeight = math.max(MIN_WINDOW_SIZE.Y, viewport.Y - (safeMargin * 2))
-		local scale = math.min(1, availableWidth / baseSize.X, availableHeight / baseSize.Y)
-		local scaledSize = Vector2.new(baseSize.X * scale, baseSize.Y * scale)
+		local scale = math.min(1, availableWidth / targetSize.X, availableHeight / targetSize.Y)
+		local scaledSize = Vector2.new(targetSize.X * scale, targetSize.Y * scale)
 		uiScale.Scale = scale
 		frame.Position = clampPosition(frame.Position, scaledSize, safeMargin)
 		applying = false
@@ -396,6 +398,8 @@ function App:createDetachedWindow(config)
 		Position = resolvedPosition,
 		Parent = config.Parent or self.screenGui,
 		Content = config.Content,
+		MinSize = config.MinSize,
+		MaxSize = config.MaxSize,
 		OnCloseRequested = config.OnCloseRequested,
 	}, self._context)
 

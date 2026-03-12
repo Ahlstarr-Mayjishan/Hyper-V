@@ -16,6 +16,8 @@ function WindowController.new(app, config)
 	self.theme = app.theme
 	self.tabs = {}
 	self.activeTab = nil
+	self._minSize = config.MinSize or Vector2.new(720, 460)
+	self._maxSize = config.MaxSize or Vector2.new(1600, 1100)
 
 	local size = if typeof(config.Size) == "Vector2"
 		then UDim2.new(0, config.Size.X, 0, config.Size.Y)
@@ -80,6 +82,35 @@ function WindowController.new(app, config)
 	content.BackgroundTransparency = 1
 	content.Parent = root
 
+	local resizeRight = Instance.new("Frame")
+	resizeRight.Name = "ResizeRight"
+	resizeRight.Size = UDim2.new(0, 10, 1, -12)
+	resizeRight.Position = UDim2.new(1, -10, 0, 0)
+	resizeRight.BackgroundTransparency = 1
+	resizeRight.BorderSizePixel = 0
+	resizeRight.Active = true
+	resizeRight.Parent = root
+
+	local resizeBottom = Instance.new("Frame")
+	resizeBottom.Name = "ResizeBottom"
+	resizeBottom.Size = UDim2.new(1, -12, 0, 10)
+	resizeBottom.Position = UDim2.new(0, 0, 1, -10)
+	resizeBottom.BackgroundTransparency = 1
+	resizeBottom.BorderSizePixel = 0
+	resizeBottom.Active = true
+	resizeBottom.Parent = root
+
+	local resizeCorner = Instance.new("Frame")
+	resizeCorner.Name = "ResizeCorner"
+	resizeCorner.Size = UDim2.new(0, 18, 0, 18)
+	resizeCorner.Position = UDim2.new(1, -18, 1, -18)
+	resizeCorner.BackgroundColor3 = self.theme.Second
+	resizeCorner.BackgroundTransparency = 0.15
+	resizeCorner.BorderSizePixel = 0
+	resizeCorner.Active = true
+	resizeCorner.Parent = root
+	app.toolkit:CreateCorner(resizeCorner, 6)
+
 	self.view = root
 	self.root = root
 	self.contentFrame = content
@@ -87,14 +118,31 @@ function WindowController.new(app, config)
 	self._titleLabel = title
 	self._tabBar = tabBar
 	self._closeButton = closeButton
+	self._resizeCorner = resizeCorner
 	self.parentFrame = app.screenGui
 	self._dragCleanup = DragController.attach(root, titleBar, {})
+	self._resizeCleanup = app.toolkit:MakeResizable(root, {
+		corner = resizeCorner,
+		right = resizeRight,
+		bottom = resizeBottom,
+	}, {
+		minSize = self._minSize,
+		maxSize = self._maxSize,
+		onResize = function(_, nextSize)
+			self:_setBaseSize(nextSize)
+		end,
+	})
 
 	closeButton.MouseButton1Click:Connect(function()
 		self:dispose()
 	end)
 
 	return self
+end
+
+function WindowController:_setBaseSize(nextSize: Vector2)
+	self._baseSize = nextSize
+	self.root.Size = UDim2.new(0, nextSize.X, 0, nextSize.Y)
 end
 
 function WindowController:applyTheme(theme, layout)
@@ -104,6 +152,9 @@ function WindowController:applyTheme(theme, layout)
 	self._titleBar.BackgroundColor3 = self.theme.Default
 	self._titleLabel.TextColor3 = self.theme.TitleText
 	self._closeButton.BackgroundColor3 = self.theme.Second
+	if self._resizeCorner then
+		self._resizeCorner.BackgroundColor3 = self.theme.Second
+	end
 
 	for tabKey, tab in pairs(self.tabs) do
 		local selected = self.activeTab == tab or self.activeTab == self.tabs[tabKey]
@@ -196,6 +247,10 @@ function WindowController:dispose()
 	if self._dragCleanup then
 		self._dragCleanup()
 		self._dragCleanup = nil
+	end
+	if self._resizeCleanup then
+		self._resizeCleanup()
+		self._resizeCleanup = nil
 	end
 	self.root:Destroy()
 end

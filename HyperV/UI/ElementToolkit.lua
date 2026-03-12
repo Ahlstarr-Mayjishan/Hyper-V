@@ -8,6 +8,7 @@ local TweenDriver = require(script.Parent.Primitives.TweenDriver)
 local Utf8Text = require(script.Parent.Parent.Text.Utf8Text)
 local KeyFormatter = require(script.Parent.Parent.Input.KeyFormatter)
 local DragController = require(script.Parent.Parent.Input.DragController)
+local ResizeController = require(script.Parent.Parent.Input.ResizeController)
 
 local ElementToolkit = {}
 ElementToolkit.__index = ElementToolkit
@@ -87,6 +88,10 @@ end
 
 function ElementToolkit:MakeDraggable(frame: GuiObject, dragArea: GuiObject, options)
 	return DragController.attach(frame, dragArea, options)
+end
+
+function ElementToolkit:MakeResizable(frame: GuiObject, handles, options)
+	return ResizeController.attach(frame, handles, options)
 end
 
 return ElementToolkit
