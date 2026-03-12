@@ -24,10 +24,30 @@ end
 
 local function getUsableCharacter(player: Player): Model?
 	local character = player.Character
-	if character and character.Parent then
+	if character and character.Parent and character:IsA("Model") and character:FindFirstChildOfClass("Humanoid") then
 		return character
 	end
+
+	local workspaceCharacter = Workspace:FindFirstChild(player.Name)
+	if
+		workspaceCharacter
+		and workspaceCharacter:IsA("Model")
+		and workspaceCharacter:FindFirstChildOfClass("Humanoid")
+	then
+		return workspaceCharacter
+	end
+
 	return nil
+end
+
+local function isCharacterReady(character: Model?): boolean
+	if not character then
+		return false
+	end
+
+	return character:FindFirstChildOfClass("Humanoid") ~= nil
+		and character:FindFirstChild("HumanoidRootPart") ~= nil
+		and character:FindFirstChild("Head") ~= nil
 end
 
 local function getWorldPoint(cf: CFrame, offset: Vector3): Vector3
@@ -192,6 +212,12 @@ function CharacterPreviewController:_refreshLiveCharacter(): boolean
 		return true
 	end
 
+	if character and not self.previewCharacter then
+		self:_rebuildPreviewCharacter()
+		self:_applyVisuals(self.state:getConfig())
+		return self.previewCharacter ~= nil
+	end
+
 	return false
 end
 
@@ -209,7 +235,7 @@ function CharacterPreviewController:_clearPreviewCharacter()
 end
 
 function CharacterPreviewController:_cloneCharacter(character: Model?): Model?
-	if not character then
+	if not character or not isCharacterReady(character) then
 		return nil
 	end
 
@@ -239,6 +265,11 @@ function CharacterPreviewController:_cloneCharacter(character: Model?): Model?
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	end
 
+	local root = clone:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		clone.PrimaryPart = root
+	end
+
 	clone:PivotTo(CFrame.new(0, 0, 0))
 	return clone
 end
@@ -248,7 +279,11 @@ function CharacterPreviewController:_rebuildPreviewCharacter()
 
 	local clone = self:_cloneCharacter(self._targetCharacter)
 	if not clone then
-		self._view:setStatus("Waiting for character model...")
+		if self._targetCharacter and not isCharacterReady(self._targetCharacter) then
+			self._view:setStatus("Character found, waiting for body parts...")
+		else
+			self._view:setStatus("Waiting for character model...")
+		end
 		return
 	end
 
@@ -476,6 +511,8 @@ end
 
 function CharacterPreviewController:open()
 	self:_refreshLiveCharacter()
+	self:_rebuildPreviewCharacter()
+	self:_applyVisuals(self.state:getConfig())
 	self.window:open()
 end
 

@@ -93,7 +93,14 @@ local function createToggle(parent: Instance, toolkit, theme, titleText: string,
 	return control
 end
 
-local function createTextInput(parent: Instance, toolkit, theme, titleText: string, width: number, onChanged: (string) -> ())
+local function createTextInput(
+	parent: Instance,
+	toolkit,
+	theme,
+	titleText: string,
+	width: number,
+	onChanged: (string) -> ()
+)
 	local row = createRow(parent, theme, titleText)
 	local input = Instance.new("TextBox")
 	input.Size = UDim2.new(0, width, 0, 22)
@@ -173,7 +180,15 @@ local function createColorInput(parent: Instance, toolkit, theme, titleText: str
 	}
 end
 
-local function createSlider(parent: Instance, toolkit, theme, titleText: string, minValue: number, maxValue: number, onChanged: (number) -> ())
+local function createSlider(
+	parent: Instance,
+	toolkit,
+	theme,
+	titleText: string,
+	minValue: number,
+	maxValue: number,
+	onChanged: (number) -> ()
+)
 	local sectionRow = Instance.new("Frame")
 	sectionRow.Size = UDim2.new(1, 0, 0, 44)
 	sectionRow.BackgroundTransparency = 1
@@ -296,6 +311,9 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	viewport.Position = UDim2.new(0, 0, 0, 0)
 	viewport.BackgroundColor3 = context.theme.Main
 	viewport.BorderSizePixel = 0
+	viewport.Ambient = Color3.fromRGB(210, 210, 210)
+	viewport.LightColor = Color3.fromRGB(255, 255, 255)
+	viewport.LightDirection = Vector3.new(-1, -1, -0.75)
 	viewport:SetAttribute("HyperVRole", "ViewportSurface")
 	viewport.Parent = root
 	context.toolkit:CreateCorner(viewport, 8)
@@ -423,18 +441,36 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	local effectsSection = createSection(controlsPanel, context.toolkit, context.theme, "Effects")
 	local charmsSection = createSection(controlsPanel, context.toolkit, context.theme, "Charms")
 
-	self.controls.autoRotate = createToggle(cameraSection, context.toolkit, context.theme, "Auto Rotate", function(value)
-		callbacks.onPatch({ orbit = { autoRotate = value } })
-	end)
+	self.controls.autoRotate = createToggle(
+		cameraSection,
+		context.toolkit,
+		context.theme,
+		"Auto Rotate",
+		function(value)
+			callbacks.onPatch({ orbit = { autoRotate = value } })
+		end
+	)
 	self.controls.orbitSpeed = createNumberInput(cameraSection, context.toolkit, context.theme, "Speed", function(value)
 		callbacks.onPatch({ orbit = { speed = value } })
 	end)
-	self.controls.orbitRadius = createNumberInput(cameraSection, context.toolkit, context.theme, "Radius", function(value)
-		callbacks.onPatch({ orbit = { radius = value } })
-	end)
-	self.controls.orbitHeight = createNumberInput(cameraSection, context.toolkit, context.theme, "Height", function(value)
-		callbacks.onPatch({ orbit = { height = value } })
-	end)
+	self.controls.orbitRadius = createNumberInput(
+		cameraSection,
+		context.toolkit,
+		context.theme,
+		"Radius",
+		function(value)
+			callbacks.onPatch({ orbit = { radius = value } })
+		end
+	)
+	self.controls.orbitHeight = createNumberInput(
+		cameraSection,
+		context.toolkit,
+		context.theme,
+		"Height",
+		function(value)
+			callbacks.onPatch({ orbit = { height = value } })
+		end
+	)
 
 	local resetViewButton = Instance.new("TextButton")
 	resetViewButton.Size = UDim2.new(1, 0, 0, 26)
@@ -448,122 +484,297 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	context.toolkit:CreateCorner(resetViewButton, 6)
 	resetViewButton.MouseButton1Click:Connect(callbacks.onResetView)
 
-	self.controls.transparency = createSlider(transparencySection, context.toolkit, context.theme, "Transparency", 0, 1, function(value)
-		callbacks.onPatch({ transparency = value })
-	end)
+	self.controls.transparency = createSlider(
+		transparencySection,
+		context.toolkit,
+		context.theme,
+		"Transparency",
+		0,
+		1,
+		function(value)
+			callbacks.onPatch({ transparency = value })
+		end
+	)
 	table.insert(self.sliderControls, self.controls.transparency)
 
-	self.controls.highlightEnabled = createToggle(highlightSection, context.toolkit, context.theme, "Enabled", function(value)
-		callbacks.onPatch({ highlight = { enabled = value } })
-	end)
-	self.controls.highlightFillColor = createColorInput(highlightSection, context.toolkit, context.theme, "Fill Color", function(value)
-		callbacks.onPatch({ highlight = { fillColor = value } })
-	end)
-	self.controls.highlightOutlineColor = createColorInput(highlightSection, context.toolkit, context.theme, "Outline Color", function(value)
-		callbacks.onPatch({ highlight = { outlineColor = value } })
-	end)
-	self.controls.highlightFillTransparency = createSlider(highlightSection, context.toolkit, context.theme, "Fill Transparency", 0, 1, function(value)
-		callbacks.onPatch({ highlight = { fillTransparency = value } })
-	end)
+	self.controls.highlightEnabled = createToggle(
+		highlightSection,
+		context.toolkit,
+		context.theme,
+		"Enabled",
+		function(value)
+			callbacks.onPatch({ highlight = { enabled = value } })
+		end
+	)
+	self.controls.highlightFillColor = createColorInput(
+		highlightSection,
+		context.toolkit,
+		context.theme,
+		"Fill Color",
+		function(value)
+			callbacks.onPatch({ highlight = { fillColor = value } })
+		end
+	)
+	self.controls.highlightOutlineColor = createColorInput(
+		highlightSection,
+		context.toolkit,
+		context.theme,
+		"Outline Color",
+		function(value)
+			callbacks.onPatch({ highlight = { outlineColor = value } })
+		end
+	)
+	self.controls.highlightFillTransparency = createSlider(
+		highlightSection,
+		context.toolkit,
+		context.theme,
+		"Fill Transparency",
+		0,
+		1,
+		function(value)
+			callbacks.onPatch({ highlight = { fillTransparency = value } })
+		end
+	)
 	table.insert(self.sliderControls, self.controls.highlightFillTransparency)
-	self.controls.highlightOutlineTransparency = createSlider(highlightSection, context.toolkit, context.theme, "Outline Transparency", 0, 1, function(value)
-		callbacks.onPatch({ highlight = { outlineTransparency = value } })
-	end)
+	self.controls.highlightOutlineTransparency = createSlider(
+		highlightSection,
+		context.toolkit,
+		context.theme,
+		"Outline Transparency",
+		0,
+		1,
+		function(value)
+			callbacks.onPatch({ highlight = { outlineTransparency = value } })
+		end
+	)
 	table.insert(self.sliderControls, self.controls.highlightOutlineTransparency)
-	self.controls.depthMode = createToggle(highlightSection, context.toolkit, context.theme, "Always On Top", function(value)
-		callbacks.onPatch({
-			highlight = {
-				depthMode = if value then Enum.HighlightDepthMode.AlwaysOnTop else Enum.HighlightDepthMode.Occluded,
-			},
-		})
-	end)
+	self.controls.depthMode = createToggle(
+		highlightSection,
+		context.toolkit,
+		context.theme,
+		"Always On Top",
+		function(value)
+			callbacks.onPatch({
+				highlight = {
+					depthMode = if value then Enum.HighlightDepthMode.AlwaysOnTop else Enum.HighlightDepthMode.Occluded,
+				},
+			})
+		end
+	)
 
 	self.controls.espBoxEnabled = createToggle(espSection, context.toolkit, context.theme, "ESP Box", function(value)
 		callbacks.onPatch({ espBox = { enabled = value } })
 	end)
-	self.controls.espBoxColor = createColorInput(espSection, context.toolkit, context.theme, "Box Color", function(value)
-		callbacks.onPatch({ espBox = { color = value } })
-	end)
-	self.controls.espBoxThickness = createNumberInput(espSection, context.toolkit, context.theme, "Box Thickness", function(value)
-		callbacks.onPatch({ espBox = { thickness = value } })
-	end)
+	self.controls.espBoxColor = createColorInput(
+		espSection,
+		context.toolkit,
+		context.theme,
+		"Box Color",
+		function(value)
+			callbacks.onPatch({ espBox = { color = value } })
+		end
+	)
+	self.controls.espBoxThickness = createNumberInput(
+		espSection,
+		context.toolkit,
+		context.theme,
+		"Box Thickness",
+		function(value)
+			callbacks.onPatch({ espBox = { thickness = value } })
+		end
+	)
 	self.controls.espInfoEnabled = createToggle(espSection, context.toolkit, context.theme, "ESP Info", function(value)
 		callbacks.onPatch({ espInfo = { enabled = value } })
 	end)
 	self.controls.espShowName = createToggle(espSection, context.toolkit, context.theme, "Show Name", function(value)
 		callbacks.onPatch({ espInfo = { showName = value } })
 	end)
-	self.controls.espShowDistance = createToggle(espSection, context.toolkit, context.theme, "Show Distance", function(value)
-		callbacks.onPatch({ espInfo = { showDistance = value } })
-	end)
-	self.controls.espShowHealth = createToggle(espSection, context.toolkit, context.theme, "Show Health", function(value)
-		callbacks.onPatch({ espInfo = { showHealth = value } })
-	end)
-	self.controls.espInfoColor = createColorInput(espSection, context.toolkit, context.theme, "Info Color", function(value)
-		callbacks.onPatch({ espInfo = { textColor = value } })
-	end)
+	self.controls.espShowDistance = createToggle(
+		espSection,
+		context.toolkit,
+		context.theme,
+		"Show Distance",
+		function(value)
+			callbacks.onPatch({ espInfo = { showDistance = value } })
+		end
+	)
+	self.controls.espShowHealth = createToggle(
+		espSection,
+		context.toolkit,
+		context.theme,
+		"Show Health",
+		function(value)
+			callbacks.onPatch({ espInfo = { showHealth = value } })
+		end
+	)
+	self.controls.espInfoColor = createColorInput(
+		espSection,
+		context.toolkit,
+		context.theme,
+		"Info Color",
+		function(value)
+			callbacks.onPatch({ espInfo = { textColor = value } })
+		end
+	)
 	self.controls.tracerEnabled = createToggle(espSection, context.toolkit, context.theme, "Tracer", function(value)
 		callbacks.onPatch({ tracer = { enabled = value } })
 	end)
-	self.controls.tracerColor = createColorInput(espSection, context.toolkit, context.theme, "Tracer Color", function(value)
-		callbacks.onPatch({ tracer = { color = value } })
-	end)
-	self.controls.tracerThickness = createNumberInput(espSection, context.toolkit, context.theme, "Tracer Thick", function(value)
-		callbacks.onPatch({ tracer = { thickness = value } })
-	end)
+	self.controls.tracerColor = createColorInput(
+		espSection,
+		context.toolkit,
+		context.theme,
+		"Tracer Color",
+		function(value)
+			callbacks.onPatch({ tracer = { color = value } })
+		end
+	)
+	self.controls.tracerThickness = createNumberInput(
+		espSection,
+		context.toolkit,
+		context.theme,
+		"Tracer Thick",
+		function(value)
+			callbacks.onPatch({ tracer = { thickness = value } })
+		end
+	)
 
 	self.controls.trailEnabled = createToggle(effectsSection, context.toolkit, context.theme, "Trail", function(value)
 		callbacks.onPatch({ trail = { enabled = value } })
 	end)
-	self.controls.trailColor = createColorInput(effectsSection, context.toolkit, context.theme, "Trail Color", function(value)
-		callbacks.onPatch({ trail = { color = value } })
-	end)
-	self.controls.trailLifetime = createNumberInput(effectsSection, context.toolkit, context.theme, "Trail Life", function(value)
-		callbacks.onPatch({ trail = { lifetime = value } })
-	end)
-	self.controls.particlesEnabled = createToggle(effectsSection, context.toolkit, context.theme, "Particles", function(value)
-		callbacks.onPatch({ particles = { enabled = value } })
-	end)
-	self.controls.particlesColor = createColorInput(effectsSection, context.toolkit, context.theme, "Particles Color", function(value)
-		callbacks.onPatch({ particles = { color = value } })
-	end)
-	self.controls.particlesRate = createNumberInput(effectsSection, context.toolkit, context.theme, "Particles Rate", function(value)
-		callbacks.onPatch({ particles = { rate = value } })
-	end)
-	self.controls.particlesSpeed = createNumberInput(effectsSection, context.toolkit, context.theme, "Particles Speed", function(value)
-		callbacks.onPatch({ particles = { speed = value } })
-	end)
-	self.controls.forceFieldEnabled = createToggle(effectsSection, context.toolkit, context.theme, "ForceField", function(value)
-		callbacks.onPatch({ forceField = { enabled = value } })
-	end)
-	self.controls.forceFieldVisible = createToggle(effectsSection, context.toolkit, context.theme, "FF Visible", function(value)
-		callbacks.onPatch({ forceField = { visible = value } })
-	end)
-	self.controls.forceFieldColor = createColorInput(effectsSection, context.toolkit, context.theme, "FF Color", function(value)
-		callbacks.onPatch({ forceField = { color = value } })
-	end)
+	self.controls.trailColor = createColorInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"Trail Color",
+		function(value)
+			callbacks.onPatch({ trail = { color = value } })
+		end
+	)
+	self.controls.trailLifetime = createNumberInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"Trail Life",
+		function(value)
+			callbacks.onPatch({ trail = { lifetime = value } })
+		end
+	)
+	self.controls.particlesEnabled = createToggle(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"Particles",
+		function(value)
+			callbacks.onPatch({ particles = { enabled = value } })
+		end
+	)
+	self.controls.particlesColor = createColorInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"Particles Color",
+		function(value)
+			callbacks.onPatch({ particles = { color = value } })
+		end
+	)
+	self.controls.particlesRate = createNumberInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"Particles Rate",
+		function(value)
+			callbacks.onPatch({ particles = { rate = value } })
+		end
+	)
+	self.controls.particlesSpeed = createNumberInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"Particles Speed",
+		function(value)
+			callbacks.onPatch({ particles = { speed = value } })
+		end
+	)
+	self.controls.forceFieldEnabled = createToggle(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"ForceField",
+		function(value)
+			callbacks.onPatch({ forceField = { enabled = value } })
+		end
+	)
+	self.controls.forceFieldVisible = createToggle(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"FF Visible",
+		function(value)
+			callbacks.onPatch({ forceField = { visible = value } })
+		end
+	)
+	self.controls.forceFieldColor = createColorInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"FF Color",
+		function(value)
+			callbacks.onPatch({ forceField = { color = value } })
+		end
+	)
 	self.controls.soundEnabled = createToggle(effectsSection, context.toolkit, context.theme, "Sound", function(value)
 		callbacks.onPatch({ sound = { enabled = value } })
 	end)
-	self.controls.soundId = createTextInput(effectsSection, context.toolkit, context.theme, "SoundId", 120, function(value)
-		callbacks.onPatch({ sound = { soundId = value } })
-	end)
-	self.controls.soundVolume = createNumberInput(effectsSection, context.toolkit, context.theme, "Volume", function(value)
-		callbacks.onPatch({ sound = { volume = value } })
-	end)
-	self.controls.soundSpeed = createNumberInput(effectsSection, context.toolkit, context.theme, "Playback", function(value)
-		callbacks.onPatch({ sound = { playbackSpeed = value } })
-	end)
+	self.controls.soundId = createTextInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"SoundId",
+		120,
+		function(value)
+			callbacks.onPatch({ sound = { soundId = value } })
+		end
+	)
+	self.controls.soundVolume = createNumberInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"Volume",
+		function(value)
+			callbacks.onPatch({ sound = { volume = value } })
+		end
+	)
+	self.controls.soundSpeed = createNumberInput(
+		effectsSection,
+		context.toolkit,
+		context.theme,
+		"Playback",
+		function(value)
+			callbacks.onPatch({ sound = { playbackSpeed = value } })
+		end
+	)
 
 	self.controls.charmsVisible = createToggle(charmsSection, context.toolkit, context.theme, "Visible", function(value)
 		callbacks.onPatch({ charms = { visible = value } })
 	end)
-	self.controls.charmsTintEnabled = createToggle(charmsSection, context.toolkit, context.theme, "Tint", function(value)
-		callbacks.onPatch({ charms = { tintEnabled = value } })
-	end)
-	self.controls.charmsTintColor = createColorInput(charmsSection, context.toolkit, context.theme, "Tint Color", function(value)
-		callbacks.onPatch({ charms = { tintColor = value } })
-	end)
+	self.controls.charmsTintEnabled = createToggle(
+		charmsSection,
+		context.toolkit,
+		context.theme,
+		"Tint",
+		function(value)
+			callbacks.onPatch({ charms = { tintEnabled = value } })
+		end
+	)
+	self.controls.charmsTintColor = createColorInput(
+		charmsSection,
+		context.toolkit,
+		context.theme,
+		"Tint Color",
+		function(value)
+			callbacks.onPatch({ charms = { tintColor = value } })
+		end
+	)
 
 	cancelButton.MouseButton1Click:Connect(callbacks.onCancel)
 	resetButton.MouseButton1Click:Connect(callbacks.onReset)
