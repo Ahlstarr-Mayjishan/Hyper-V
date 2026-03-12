@@ -16,6 +16,7 @@ function HyperVAPI.new()
     
     -- Reference to HyperVMarker
     self.Marker = nil
+    self._listeners = setmetatable({}, { __mode = "k" })
     
     instance = self
     return self
@@ -750,12 +751,14 @@ end
 
 function HyperVAPI:Emit(instance: Instance, event: string, ...: any)
     if not instance then return end
+    local args = table.pack(...)
 
     pcall(function()
-        local listeners = instance:GetAttribute("HyperV_Listeners_" .. event)
-        if listeners and type(listeners) == "table" then
+        local instanceListeners = self._listeners[instance]
+        local listeners = instanceListeners and instanceListeners[event]
+        if listeners then
             for _, callback in ipairs(listeners) do
-                callback(...)
+                callback(table.unpack(args, 1, args.n))
             end
         end
     end)
@@ -765,11 +768,17 @@ function HyperVAPI:On(instance: Instance, event: string, callback: (...any) -> (
     if not instance then return false end
 
     local success = pcall(function()
-        local attrName = "HyperV_Listeners_" .. event
-        local listeners = instance:GetAttribute(attrName) or {}
-
+        local instanceListeners = self._listeners[instance]
+        if not instanceListeners then
+            instanceListeners = {}
+            self._listeners[instance] = instanceListeners
+        end
+        local listeners = instanceListeners[event]
+        if not listeners then
+            listeners = {}
+            instanceListeners[event] = listeners
+        end
         table.insert(listeners, callback)
-        instance:SetAttribute(attrName, listeners)
     end)
 
     return success
@@ -779,7 +788,16 @@ function HyperVAPI:Off(instance: Instance, event: string)
     if not instance then return end
 
     pcall(function()
-        instance:SetAttribute("HyperV_Listeners_" .. event, nil)
+        local instanceListeners = self._listeners[instance]
+        if not instanceListeners then
+            return
+        end
+
+        instanceListeners[event] = nil
+
+        if next(instanceListeners) == nil then
+            self._listeners[instance] = nil
+        end
     end)
 end
 
