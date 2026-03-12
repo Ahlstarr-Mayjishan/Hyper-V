@@ -3,6 +3,14 @@
 local CharacterPreviewView = {}
 CharacterPreviewView.__index = CharacterPreviewView
 
+local function formatNumber(value: number): string
+	local rounded = math.floor((value * 100) + 0.5) / 100
+	local text = string.format("%.2f", rounded)
+	text = string.gsub(text, "0+$", "")
+	text = string.gsub(text, "%.$", "")
+	return text
+end
+
 local function setGuiZIndex(root: Instance, zIndex: number)
 	if root:IsA("GuiObject") then
 		root.ZIndex = zIndex
@@ -134,7 +142,11 @@ local function createTextInput(
 
 	return {
 		setValue = function(_, value)
-			input.Text = tostring(value)
+			if type(value) == "number" then
+				input.Text = formatNumber(value)
+			else
+				input.Text = tostring(value)
+			end
 		end,
 		input = input,
 	}
@@ -262,7 +274,7 @@ local function createSlider(
 		fill.Size = UDim2.new(nextPercent, 0, 1, 0)
 		knob.Position = UDim2.new(nextPercent, 0, 0.5, 0)
 		local value = minValue + ((maxValue - minValue) * nextPercent)
-		valueLabel.Text = string.format("%.2f", value)
+		valueLabel.Text = formatNumber(value)
 		if emit then
 			onChanged(value)
 		end

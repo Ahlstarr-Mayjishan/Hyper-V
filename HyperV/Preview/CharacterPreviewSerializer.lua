@@ -92,6 +92,11 @@ local function clamp01(value: number): number
 	return math.clamp(value, 0, 1)
 end
 
+local function roundTo(value: number, step: number): number
+	local scale = 1 / step
+	return math.floor((value * scale) + 0.5) / scale
+end
+
 local function asColor(value: any, fallback: Color3): Color3
 	return if typeof(value) == "Color3" then value else fallback
 end
@@ -112,7 +117,7 @@ function Serializer.getDefaults(): CharacterPreviewConfig
 	return {
 		transparency = 0,
 		orbit = {
-			angle = math.pi * 0.5,
+			angle = -math.pi * 0.5,
 			radius = 6.5,
 			height = 1.1,
 			autoRotate = true,
@@ -192,23 +197,23 @@ function Serializer.normalize(config: any): CharacterPreviewConfig
 	local defaults = Serializer.getDefaults()
 	local merged = Serializer.merge(defaults, config or {})
 
-	merged.transparency = clamp01(tonumber(merged.transparency) or defaults.transparency)
-	merged.orbit.angle = tonumber(merged.orbit.angle) or defaults.orbit.angle
-	merged.orbit.radius = math.max(3, tonumber(merged.orbit.radius) or defaults.orbit.radius)
-	merged.orbit.height = math.clamp(tonumber(merged.orbit.height) or defaults.orbit.height, -2, 6)
+	merged.transparency = roundTo(clamp01(tonumber(merged.transparency) or defaults.transparency), 0.01)
+	merged.orbit.angle = roundTo(tonumber(merged.orbit.angle) or defaults.orbit.angle, 0.001)
+	merged.orbit.radius = roundTo(math.max(3, tonumber(merged.orbit.radius) or defaults.orbit.radius), 0.01)
+	merged.orbit.height = roundTo(math.clamp(tonumber(merged.orbit.height) or defaults.orbit.height, -2, 6), 0.01)
 	merged.orbit.autoRotate = merged.orbit.autoRotate ~= false
-	merged.orbit.speed = math.clamp(tonumber(merged.orbit.speed) or defaults.orbit.speed, 0, 6)
+	merged.orbit.speed = roundTo(math.clamp(tonumber(merged.orbit.speed) or defaults.orbit.speed, 0, 6), 0.01)
 
 	merged.highlight.enabled = merged.highlight.enabled == true
 	merged.highlight.outlineColor = asColor(merged.highlight.outlineColor, defaults.highlight.outlineColor)
 	merged.highlight.fillColor = asColor(merged.highlight.fillColor, defaults.highlight.fillColor)
-	merged.highlight.fillTransparency = clamp01(tonumber(merged.highlight.fillTransparency) or defaults.highlight.fillTransparency)
-	merged.highlight.outlineTransparency = clamp01(tonumber(merged.highlight.outlineTransparency) or defaults.highlight.outlineTransparency)
+	merged.highlight.fillTransparency = roundTo(clamp01(tonumber(merged.highlight.fillTransparency) or defaults.highlight.fillTransparency), 0.01)
+	merged.highlight.outlineTransparency = roundTo(clamp01(tonumber(merged.highlight.outlineTransparency) or defaults.highlight.outlineTransparency), 0.01)
 	merged.highlight.depthMode = if typeof(merged.highlight.depthMode) == "EnumItem" then merged.highlight.depthMode else defaults.highlight.depthMode
 
 	merged.espBox.enabled = merged.espBox.enabled == true
 	merged.espBox.color = asColor(merged.espBox.color, defaults.espBox.color)
-	merged.espBox.thickness = math.clamp(tonumber(merged.espBox.thickness) or defaults.espBox.thickness, 1, 6)
+	merged.espBox.thickness = roundTo(math.clamp(tonumber(merged.espBox.thickness) or defaults.espBox.thickness, 1, 6), 0.01)
 	merged.espBox.alwaysOnTop = merged.espBox.alwaysOnTop ~= false
 
 	merged.espInfo.enabled = merged.espInfo.enabled == true
@@ -219,18 +224,18 @@ function Serializer.normalize(config: any): CharacterPreviewConfig
 
 	merged.tracer.enabled = merged.tracer.enabled == true
 	merged.tracer.color = asColor(merged.tracer.color, defaults.tracer.color)
-	merged.tracer.thickness = math.clamp(tonumber(merged.tracer.thickness) or defaults.tracer.thickness, 1, 6)
+	merged.tracer.thickness = roundTo(math.clamp(tonumber(merged.tracer.thickness) or defaults.tracer.thickness, 1, 6), 0.01)
 	merged.tracer.originMode = if merged.tracer.originMode == "Center" then "Center" else "BottomCenter"
 
 	merged.trail.enabled = merged.trail.enabled == true
 	merged.trail.color = asColor(merged.trail.color, defaults.trail.color)
-	merged.trail.lifetime = math.clamp(tonumber(merged.trail.lifetime) or defaults.trail.lifetime, 0.1, 3)
+	merged.trail.lifetime = roundTo(math.clamp(tonumber(merged.trail.lifetime) or defaults.trail.lifetime, 0.1, 3), 0.01)
 
 	merged.particles.enabled = merged.particles.enabled == true
 	merged.particles.color = asColor(merged.particles.color, defaults.particles.color)
-	merged.particles.rate = math.clamp(tonumber(merged.particles.rate) or defaults.particles.rate, 0, 200)
-	merged.particles.speed = math.clamp(tonumber(merged.particles.speed) or defaults.particles.speed, 0, 20)
-	merged.particles.lifetime = math.clamp(tonumber(merged.particles.lifetime) or defaults.particles.lifetime, 0.1, 6)
+	merged.particles.rate = roundTo(math.clamp(tonumber(merged.particles.rate) or defaults.particles.rate, 0, 200), 0.01)
+	merged.particles.speed = roundTo(math.clamp(tonumber(merged.particles.speed) or defaults.particles.speed, 0, 20), 0.01)
+	merged.particles.lifetime = roundTo(math.clamp(tonumber(merged.particles.lifetime) or defaults.particles.lifetime, 0.1, 6), 0.01)
 
 	merged.forceField.enabled = merged.forceField.enabled == true
 	merged.forceField.visible = merged.forceField.visible ~= false
@@ -238,8 +243,8 @@ function Serializer.normalize(config: any): CharacterPreviewConfig
 
 	merged.sound.enabled = merged.sound.enabled == true
 	merged.sound.soundId = tostring(merged.sound.soundId or defaults.sound.soundId)
-	merged.sound.volume = math.clamp(tonumber(merged.sound.volume) or defaults.sound.volume, 0, 1)
-	merged.sound.playbackSpeed = math.clamp(tonumber(merged.sound.playbackSpeed) or defaults.sound.playbackSpeed, 0.25, 3)
+	merged.sound.volume = roundTo(math.clamp(tonumber(merged.sound.volume) or defaults.sound.volume, 0, 1), 0.01)
+	merged.sound.playbackSpeed = roundTo(math.clamp(tonumber(merged.sound.playbackSpeed) or defaults.sound.playbackSpeed, 0.25, 3), 0.01)
 
 	merged.charms.visible = merged.charms.visible ~= false
 	merged.charms.tintEnabled = merged.charms.tintEnabled == true
