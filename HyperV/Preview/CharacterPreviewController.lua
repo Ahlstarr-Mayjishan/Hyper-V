@@ -102,6 +102,62 @@ local function getWorldPoint(cf: CFrame, offset: Vector3): Vector3
 	return (cf * CFrame.new(offset)).Position
 end
 
+local function getClassicFaceTexture(head: BasePart): string
+	for _, child in ipairs(head:GetChildren()) do
+		if child:IsA("Decal") and (child.Name == "face" or child.Name == "Face") and child.Texture ~= "" then
+			return child.Texture
+		end
+	end
+
+	return "rbxasset://textures/face.png"
+end
+
+local function buildClassicPreviewHead(model: Model)
+	local originalHead = model:FindFirstChild("Head")
+	if not originalHead or not originalHead:IsA("BasePart") then
+		return
+	end
+
+	local existing = model:FindFirstChild("PreviewClassicHead")
+	if existing then
+		existing:Destroy()
+	end
+
+	for _, child in ipairs(originalHead:GetChildren()) do
+		if child:IsA("Decal") or child:IsA("Texture") then
+			child.Transparency = 1
+		elseif child:IsA("SurfaceAppearance") then
+			child.Enabled = false
+		end
+	end
+
+	originalHead.Transparency = 1
+	originalHead.LocalTransparencyModifier = 0
+
+	local classicHead = Instance.new("Part")
+	classicHead.Name = "PreviewClassicHead"
+	classicHead.Size = originalHead.Size
+	classicHead.CFrame = originalHead.CFrame
+	classicHead.Color = originalHead.Color
+	classicHead.Material = Enum.Material.SmoothPlastic
+	classicHead.TopSurface = Enum.SurfaceType.Smooth
+	classicHead.BottomSurface = Enum.SurfaceType.Smooth
+	classicHead.Anchored = true
+	classicHead.CanCollide = false
+	classicHead.CastShadow = false
+	classicHead.Parent = model
+
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Head
+	mesh.Parent = classicHead
+
+	local face = Instance.new("Decal")
+	face.Name = "Face"
+	face.Face = Enum.NormalId.Front
+	face.Texture = getClassicFaceTexture(originalHead)
+	face.Parent = classicHead
+end
+
 function CharacterPreviewController.new(config, context)
 	local self = setmetatable({}, CharacterPreviewController)
 	self.id = config.Id or config.Name or "CharacterPreview"
@@ -331,6 +387,8 @@ function CharacterPreviewController:_cloneCharacter(character: Model?): Model?
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	end
 
+	buildClassicPreviewHead(clone)
+
 	local root = clone:FindFirstChild("HumanoidRootPart")
 	if root and root:IsA("BasePart") then
 		clone.PrimaryPart = root
@@ -453,7 +511,7 @@ function CharacterPreviewController:_applyVisuals(snapshot: CharacterPreviewConf
 
 	self._view:setStatus(nil)
 	Effects.applyTransparency(self.previewCharacter, snapshot.transparency, self._effectCache)
-	Effects.applyCharms(self.previewCharacter, snapshot.charms, self._effectCache)
+	Effects.applyCharms(self.previewCharacter, snapshot.charms, self._effectCache, snapshot.transparency)
 	Effects.applyHighlight(self.previewCharacter, snapshot.highlight, self._effectCache)
 	Effects.applyTrail(self.previewCharacter, snapshot.trail, self._effectCache)
 	Effects.applyParticles(self.previewCharacter, snapshot.particles, self._effectCache)

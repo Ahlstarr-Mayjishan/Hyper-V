@@ -152,8 +152,10 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 	end
 end
 
-function Effects.applyCharms(model: Model, config, cache)
+function Effects.applyCharms(model: Model, config, cache, baseTransparency: number)
 	cache.charmsOriginalColors = cache.charmsOriginalColors or {}
+	cache.charmsOriginalTransparency = cache.charmsOriginalTransparency or setmetatable({}, { __mode = "k" })
+	local transparencyValue = math.clamp(baseTransparency or 0, 0, 1)
 
 	for _, accessory in ipairs(model:GetChildren()) do
 		if accessory:IsA("Accessory") then
@@ -162,7 +164,15 @@ function Effects.applyCharms(model: Model, config, cache)
 					if cache.charmsOriginalColors[descendant] == nil then
 						cache.charmsOriginalColors[descendant] = descendant.Color
 					end
-					descendant.Transparency = config.visible and 0 or 1
+					if cache.charmsOriginalTransparency[descendant] == nil then
+						cache.charmsOriginalTransparency[descendant] = descendant.Transparency
+					end
+					local originalTransparency = cache.charmsOriginalTransparency[descendant]
+					if config.visible then
+						descendant.Transparency = originalTransparency + ((1 - originalTransparency) * (transparencyValue * 0.82))
+					else
+						descendant.Transparency = 1
+					end
 					if config.tintEnabled then
 						descendant.Color = config.tintColor
 					else
