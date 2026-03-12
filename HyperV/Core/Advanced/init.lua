@@ -12,12 +12,12 @@
     - Morph: Interpolate giữa 2 states
 ]]
 
-local Types = require(script.Parent.types)
-local PriorityQueue = require(script.Parent.PriorityQueue)
-local Chain = require(script.Parent.Chain)
-local Stagger = require(script.Parent.Stagger)
-local KeyframeModule = require(script.Parent.Keyframe)
-local Morph = require(script.Parent.Morph)
+local Types = require(script.types)
+local PriorityQueue = require(script.PriorityQueue)
+local Chain = require(script.Chain)
+local Stagger = require(script.Stagger)
+local KeyframeModule = require(script.Keyframe)
+local Morph = require(script.Morph)
 
 -- Type imports
 export type ChainConfig = Types.ChainConfig
