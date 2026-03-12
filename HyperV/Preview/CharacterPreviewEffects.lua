@@ -29,6 +29,87 @@ function Effects.clear(cache)
 	end
 end
 
+function Effects.ensurePreviewStage(worldModel: WorldModel, cache)
+	if cache.stage then
+		return cache.stage
+	end
+
+	local stage = {}
+
+	local pedestal = Instance.new("Part")
+	pedestal.Name = "PreviewPedestal"
+	pedestal.Anchored = true
+	pedestal.CanCollide = false
+	pedestal.CastShadow = false
+	pedestal.Material = Enum.Material.SmoothPlastic
+	pedestal.Color = Color3.fromRGB(33, 36, 44)
+	pedestal.Size = Vector3.new(7.5, 0.4, 7.5)
+	pedestal.Position = Vector3.new(0, -3.05, 0)
+	pedestal.Parent = worldModel
+	stage.pedestal = pedestal
+
+	local glow = Instance.new("Part")
+	glow.Name = "PreviewPedestalGlow"
+	glow.Anchored = true
+	glow.CanCollide = false
+	glow.CastShadow = false
+	glow.Material = Enum.Material.Neon
+	glow.Color = Color3.fromRGB(90, 150, 255)
+	glow.Transparency = 0.78
+	glow.Size = Vector3.new(5.6, 0.05, 5.6)
+	glow.Position = pedestal.Position + Vector3.new(0, 0.23, 0)
+	glow.Parent = worldModel
+	stage.glow = glow
+
+	local keyLightPart = Instance.new("Part")
+	keyLightPart.Name = "PreviewKeyLight"
+	keyLightPart.Anchored = true
+	keyLightPart.CanCollide = false
+	keyLightPart.Transparency = 1
+	keyLightPart.Position = Vector3.new(4.5, 4.6, 3.5)
+	keyLightPart.Parent = worldModel
+
+	local keyLight = Instance.new("PointLight")
+	keyLight.Range = 16
+	keyLight.Brightness = 1.2
+	keyLight.Color = Color3.fromRGB(255, 244, 228)
+	keyLight.Parent = keyLightPart
+	stage.keyLightPart = keyLightPart
+
+	local fillLightPart = Instance.new("Part")
+	fillLightPart.Name = "PreviewFillLight"
+	fillLightPart.Anchored = true
+	fillLightPart.CanCollide = false
+	fillLightPart.Transparency = 1
+	fillLightPart.Position = Vector3.new(-4.4, 2.8, 4.2)
+	fillLightPart.Parent = worldModel
+
+	local fillLight = Instance.new("PointLight")
+	fillLight.Range = 14
+	fillLight.Brightness = 0.55
+	fillLight.Color = Color3.fromRGB(154, 182, 255)
+	fillLight.Parent = fillLightPart
+	stage.fillLightPart = fillLightPart
+
+	local rimLightPart = Instance.new("Part")
+	rimLightPart.Name = "PreviewRimLight"
+	rimLightPart.Anchored = true
+	rimLightPart.CanCollide = false
+	rimLightPart.Transparency = 1
+	rimLightPart.Position = Vector3.new(0, 3.8, -5.8)
+	rimLightPart.Parent = worldModel
+
+	local rimLight = Instance.new("PointLight")
+	rimLight.Range = 18
+	rimLight.Brightness = 0.85
+	rimLight.Color = Color3.fromRGB(112, 195, 255)
+	rimLight.Parent = rimLightPart
+	stage.rimLightPart = rimLightPart
+
+	cache.stage = stage
+	return stage
+end
+
 function Effects.applyTransparency(model: Model, value: number, cache)
 	cache.transparencyOriginals = cache.transparencyOriginals or setmetatable({}, { __mode = "k" })
 	cache.decalOriginals = cache.decalOriginals or setmetatable({}, { __mode = "k" })
@@ -311,7 +392,8 @@ function Effects.applyEspBox(overlayFrame: Frame, boxFrame: Frame, projectedBoun
 	bottomRightVertical.Size = UDim2.new(0, thickness, 0, cornerLength)
 end
 
-function Effects.applyEspInfo(infoLabel: TextLabel, projectedBounds, config, characterName: string, distance: number, healthText: string)
+function Effects.applyEspInfo(infoCard: Frame, infoLabel: TextLabel, projectedBounds, config, characterName: string, distance: number, healthText: string)
+	infoCard.Visible = config.enabled and projectedBounds ~= nil
 	infoLabel.Visible = config.enabled and projectedBounds ~= nil
 	if not projectedBounds then
 		return
@@ -330,8 +412,10 @@ function Effects.applyEspInfo(infoLabel: TextLabel, projectedBounds, config, cha
 
 	infoLabel.Text = table.concat(lines, "\n")
 	infoLabel.TextColor3 = config.textColor
-	infoLabel.Position = UDim2.new(0, projectedBounds.minX, 0, math.max(0, projectedBounds.minY - 32))
-	infoLabel.Size = UDim2.new(0, math.max(projectedBounds.width, 84), 0, 32)
+	infoCard.Position = UDim2.new(0, projectedBounds.minX, 0, math.max(0, projectedBounds.minY - 42))
+	infoCard.Size = UDim2.new(0, math.max(projectedBounds.width + 10, 108), 0, 40)
+	infoLabel.Position = UDim2.new(0, 0, 0, 0)
+	infoLabel.Size = UDim2.new(1, 0, 1, 0)
 end
 
 function Effects.applyTracer(tracerFrame: Frame, projectedBounds, overlaySize: Vector2, config)
@@ -354,6 +438,13 @@ function Effects.applyTracer(tracerFrame: Frame, projectedBounds, overlaySize: V
 	tracerFrame.Rotation = angle
 	tracerFrame.BackgroundColor3 = config.color
 	tracerFrame.BorderSizePixel = 0
+
+	local glow = tracerFrame:FindFirstChild("Glow")
+	if glow and glow:IsA("Frame") then
+		glow.BackgroundColor3 = config.color
+		glow.Size = UDim2.new(1, 0, 0, math.max(3, math.floor(config.thickness) + 2))
+		glow.Position = UDim2.new(0, 0, 0.5, -glow.Size.Y.Offset * 0.5)
+	end
 end
 
 return Effects

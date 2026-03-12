@@ -346,6 +346,17 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	boxFrame.BackgroundTransparency = 1
 	boxFrame.Parent = overlay
 
+	local infoCard = Instance.new("Frame")
+	infoCard.Name = "EspInfoCard"
+	infoCard.BackgroundColor3 = context.theme.Default
+	infoCard.BackgroundTransparency = 0.08
+	infoCard.BorderSizePixel = 0
+	infoCard.Visible = false
+	infoCard:SetAttribute("HyperVRole", "InfoCard")
+	infoCard.Parent = overlay
+	context.toolkit:CreateCorner(infoCard, 8)
+	context.toolkit:CreateStroke(infoCard, context.theme.Border)
+
 	local infoLabel = Instance.new("TextLabel")
 	infoLabel.Name = "EspInfo"
 	infoLabel.BackgroundTransparency = 1
@@ -355,12 +366,28 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	infoLabel.TextXAlignment = Enum.TextXAlignment.Left
 	infoLabel.TextYAlignment = Enum.TextYAlignment.Top
 	infoLabel.Visible = false
-	infoLabel.Parent = overlay
+	infoLabel.Parent = infoCard
+
+	local infoPadding = Instance.new("UIPadding")
+	infoPadding.PaddingTop = UDim.new(0, 7)
+	infoPadding.PaddingBottom = UDim.new(0, 7)
+	infoPadding.PaddingLeft = UDim.new(0, 8)
+	infoPadding.PaddingRight = UDim.new(0, 8)
+	infoPadding.Parent = infoCard
 
 	local tracerFrame = Instance.new("Frame")
 	tracerFrame.Name = "Tracer"
 	tracerFrame.Visible = false
+	tracerFrame.BackgroundTransparency = 0
+	tracerFrame.BorderSizePixel = 0
 	tracerFrame.Parent = overlay
+
+	local tracerGlow = Instance.new("Frame")
+	tracerGlow.Name = "Glow"
+	tracerGlow.Size = UDim2.fromScale(1, 1)
+	tracerGlow.BackgroundTransparency = 0.55
+	tracerGlow.BorderSizePixel = 0
+	tracerGlow.Parent = tracerFrame
 
 	local statusLabel = Instance.new("TextLabel")
 	statusLabel.Name = "Status"
@@ -455,6 +482,7 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self.viewport = viewport
 	self.viewportOverlay = overlay
 	self.boxFrame = boxFrame
+	self.infoCard = infoCard
 	self.infoLabel = infoLabel
 	self.tracerFrame = tracerFrame
 	self.statusLabel = statusLabel
@@ -810,8 +838,10 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 
 	setGuiZIndex(root, baseZIndex)
 	boxFrame.ZIndex = baseZIndex + 1
-	infoLabel.ZIndex = baseZIndex + 2
+	infoCard.ZIndex = baseZIndex + 2
+	infoLabel.ZIndex = baseZIndex + 3
 	tracerFrame.ZIndex = baseZIndex + 1
+	tracerGlow.ZIndex = baseZIndex
 	statusLabel.ZIndex = baseZIndex + 3
 
 	return self
@@ -911,6 +941,12 @@ function CharacterPreviewView:applyTheme(theme)
 			descendant.TextColor3 = Color3.new(1, 1, 1)
 		elseif role == "StatusText" and descendant:IsA("TextLabel") then
 			descendant.TextColor3 = theme.SecondText
+		elseif role == "InfoCard" and descendant:IsA("Frame") then
+			descendant.BackgroundColor3 = theme.Default
+			local stroke = descendant:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = theme.Border
+			end
 		elseif role == "ViewportSurface" and descendant:IsA("ViewportFrame") then
 			descendant.BackgroundColor3 = theme.Main
 			local stroke = descendant:FindFirstChildOfClass("UIStroke")

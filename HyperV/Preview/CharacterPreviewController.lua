@@ -223,15 +223,23 @@ function CharacterPreviewController:_refreshLiveCharacter(): boolean
 end
 
 function CharacterPreviewController:_clearPreviewCharacter()
-	Effects.clear(self._effectCache)
-
 	if self.previewCharacter then
 		self.previewCharacter:Destroy()
 		self.previewCharacter = nil
 	end
 
-	for _, child in ipairs(self._view.worldModel:GetChildren()) do
-		child:Destroy()
+	for key, value in pairs(self._effectCache) do
+		if key ~= "stage" and typeof(value) == "Instance" then
+			value:Destroy()
+			self._effectCache[key] = nil
+		elseif key ~= "stage" and type(value) == "table" then
+			for _, item in ipairs(value) do
+				if typeof(item) == "Instance" then
+					item:Destroy()
+				end
+			end
+			self._effectCache[key] = nil
+		end
 	end
 end
 
@@ -288,6 +296,7 @@ function CharacterPreviewController:_rebuildPreviewCharacter()
 		return
 	end
 
+	Effects.ensurePreviewStage(self._view.worldModel, self._effectCache)
 	clone.Parent = self._view.worldModel
 	self.previewCharacter = clone
 	self._view:setStatus(nil)
@@ -398,6 +407,7 @@ function CharacterPreviewController:_updateProjectedEffects(snapshot: CharacterP
 	local bounds = self:_projectBounds()
 	Effects.applyEspBox(self._view.viewportOverlay, self._view.boxFrame, bounds, snapshot.espBox)
 	Effects.applyEspInfo(
+		self._view.infoCard,
 		self._view.infoLabel,
 		bounds,
 		snapshot.espInfo,
