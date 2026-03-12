@@ -210,7 +210,6 @@ function CharacterPreviewController.new(config, context)
 	self._committedConfig = self.state:getConfig()
 	self._zoomTargetRadius = self.state:getConfig().orbit.radius
 	self._zoomCurrentRadius = self._zoomTargetRadius
-	self._zoomVelocity = 0
 
 	self._view = CharacterPreviewView.new(window, context, {
 		onPatch = function(patch)
@@ -609,12 +608,11 @@ function CharacterPreviewController:_step(deltaTime: number)
 	end
 
 	local snapshot = self.state:getConfig()
-	local zoomDelta = self._zoomTargetRadius - snapshot.orbit.radius
-	if math.abs(zoomDelta) > 0.001 or math.abs(self._zoomVelocity) > 0.001 then
-		local stiffness = 34
-		local damping = 0.82 ^ math.max(deltaTime * 60, 1)
-		self._zoomVelocity = (self._zoomVelocity + (zoomDelta * stiffness * deltaTime)) * damping
-		local nextRadius = math.clamp(snapshot.orbit.radius + self._zoomVelocity, 2.4, 18)
+	local zoomDelta = self._zoomTargetRadius - (self._zoomCurrentRadius or snapshot.orbit.radius)
+	if math.abs(zoomDelta) > 0.001 then
+		local smoothing = 18
+		local alpha = 1 - math.exp(-smoothing * deltaTime)
+		local nextRadius = math.clamp((self._zoomCurrentRadius or snapshot.orbit.radius) + (zoomDelta * alpha), 2.4, 18)
 		self._zoomCurrentRadius = nextRadius
 		snapshot = self.state:update({
 			orbit = {
@@ -623,7 +621,6 @@ function CharacterPreviewController:_step(deltaTime: number)
 		})
 	else
 		self._zoomCurrentRadius = snapshot.orbit.radius
-		self._zoomVelocity = 0
 	end
 	if snapshot.orbit.autoRotate and not self._rotationDragging then
 		snapshot = self.state:update({
@@ -653,8 +650,7 @@ function CharacterPreviewController:_onZoomInput(input: InputObject)
 
 	local currentRadius = snapshot.orbit.radius
 	self._zoomTargetRadius = math.clamp(self._zoomTargetRadius - (wheelDelta * 0.95), 2.4, 18)
-	self._zoomVelocity = self._zoomVelocity + ((self._zoomTargetRadius - currentRadius) * 0.18)
-	local immediateRadius = math.clamp(currentRadius + (self._zoomVelocity * 0.35), 2.4, 18)
+	local immediateRadius = math.clamp(currentRadius + ((self._zoomTargetRadius - currentRadius) * 0.42), 2.4, 18)
 	self._zoomCurrentRadius = immediateRadius
 	self.state:update({
 		orbit = {
