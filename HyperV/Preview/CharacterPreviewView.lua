@@ -320,7 +320,7 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 
 	local viewport = Instance.new("ViewportFrame")
 	viewport.Name = "Viewport"
-	viewport.Size = UDim2.new(1, -238, 1, -12)
+	viewport.Size = UDim2.new(1, -246, 1, -12)
 	viewport.Position = UDim2.new(0, 0, 0, 0)
 	viewport.BackgroundColor3 = context.theme.Main
 	viewport.BorderSizePixel = 0
@@ -389,10 +389,21 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	controlsPanel.Name = "Controls"
 	controlsPanel.Size = UDim2.new(0, 230, 1, -56)
 	controlsPanel.Position = UDim2.new(1, -230, 0, 0)
-	controlsPanel.BackgroundTransparency = 1
+	controlsPanel.BackgroundTransparency = 0
+	controlsPanel.BackgroundColor3 = context.theme.Default
 	controlsPanel.BorderSizePixel = 0
 	controlsPanel.ScrollBarThickness = 4
 	controlsPanel.Parent = root
+	controlsPanel:SetAttribute("HyperVRole", "SectionSurface")
+	context.toolkit:CreateCorner(controlsPanel, 8)
+	context.toolkit:CreateStroke(controlsPanel, context.theme.Border)
+
+	local controlsPadding = Instance.new("UIPadding")
+	controlsPadding.PaddingTop = UDim.new(0, 8)
+	controlsPadding.PaddingBottom = UDim.new(0, 8)
+	controlsPadding.PaddingLeft = UDim.new(0, 8)
+	controlsPadding.PaddingRight = UDim.new(0, 8)
+	controlsPadding.Parent = controlsPanel
 
 	local controlsLayout = Instance.new("UIListLayout")
 	controlsLayout.Padding = UDim.new(0, 8)
@@ -404,8 +415,12 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	local actionsRow = Instance.new("Frame")
 	actionsRow.Size = UDim2.new(0, 230, 0, 44)
 	actionsRow.Position = UDim2.new(1, -230, 1, -44)
-	actionsRow.BackgroundTransparency = 1
+	actionsRow.BackgroundTransparency = 0
+	actionsRow.BackgroundColor3 = context.theme.Default
 	actionsRow.Parent = root
+	actionsRow:SetAttribute("HyperVRole", "SectionSurface")
+	context.toolkit:CreateCorner(actionsRow, 8)
+	context.toolkit:CreateStroke(actionsRow, context.theme.Border)
 
 	local actionLayout = Instance.new("UIListLayout")
 	actionLayout.FillDirection = Enum.FillDirection.Horizontal
