@@ -75,8 +75,8 @@ function Scan-Patterns {
 		$line = $Lines[$index]
 		$relative = Get-RelativePath $FilePath
 
-		if ($line -match 'require\(script\.(types|pool|collectors|strategies)\.') {
-			Add-Finding "error" $relative $lineNumber "bad-relative-require" "Use script.Parent for sibling folders under a ModuleScript."
+		if ($line -match 'require\(script\.(types|pool|collectors|strategies)(\.|\))') {
+			Add-Finding "error" $relative $lineNumber "bad-relative-require" "Use script.Parent for sibling modules or folders under a ModuleScript."
 		}
 
 		if ($line -match 'require\(script\.[A-Za-z_][A-Za-z0-9_]*\)') {
