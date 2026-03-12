@@ -103,6 +103,15 @@ local function getWorldPoint(cf: CFrame, offset: Vector3): Vector3
 	return (cf * CFrame.new(offset)).Position
 end
 
+local function isPointInsideGui(guiObject: GuiObject, position: Vector3): boolean
+	local absolutePosition = guiObject.AbsolutePosition
+	local absoluteSize = guiObject.AbsoluteSize
+	return position.X >= absolutePosition.X
+		and position.X <= (absolutePosition.X + absoluteSize.X)
+		and position.Y >= absolutePosition.Y
+		and position.Y <= (absolutePosition.Y + absoluteSize.Y)
+end
+
 local function getClassicFaceTexture(head: BasePart): string
 	for _, child in ipairs(head:GetChildren()) do
 		if child:IsA("Decal") and (child.Name == "face" or child.Name == "Face") and child.Texture ~= "" then
@@ -251,6 +260,12 @@ function CharacterPreviewController.new(config, context)
 		then
 			self._rotationDragging = false
 			self._lastPointer = nil
+		end
+	end))
+
+	self._disposables:add(self._view.viewport.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseWheel then
+			self:_onZoomInput(input)
 		end
 	end))
 
@@ -584,6 +599,25 @@ function CharacterPreviewController:_step(deltaTime: number)
 		Effects.applyTrail(self.previewCharacter, snapshot.trail, self._effectCache)
 	end
 	self:_updateProjectedEffects(snapshot)
+end
+
+function CharacterPreviewController:_onZoomInput(input: InputObject)
+	if not isPointInsideGui(self._view.viewport, input.Position) then
+		return
+	end
+
+	local snapshot = self.state:getConfig()
+	local wheelDelta = input.Position.Z
+	if wheelDelta == 0 then
+		return
+	end
+
+	local nextRadius = math.clamp(snapshot.orbit.radius - (wheelDelta * 0.45), 3, 18)
+	self.state:update({
+		orbit = {
+			radius = nextRadius,
+		},
+	})
 end
 
 function CharacterPreviewController:_onRotateMove(position: Vector3)
