@@ -1,0 +1,30 @@
+{
+  "name": "HyperVStudio",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "HyperV": {
+        "$className": "Folder",
+        "Main": {
+          "$path": "Main.lua"
+        },
+        "HyperV": {
+          "$path": "HyperV"
+        },
+        "Hyper V": {
+          "$path": "Hyper V"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "StudioLoader": {
+          "$path": "StudioLoader.client.lua"
+        }
+      }
+    }
+  }
+}
