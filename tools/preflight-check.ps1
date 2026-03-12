@@ -103,6 +103,10 @@ function Scan-Patterns {
 			Add-Finding "error" $relative $lineNumber "invalid-enum" "Enum.EasingStyle.Expo does not exist; use Enum.EasingStyle.Exponential."
 		}
 
+		if ($line -match '\bEnum\.EasingStyle\.Circ\b') {
+			Add-Finding "error" $relative $lineNumber "invalid-enum" "Enum.EasingStyle.Circ does not exist; use Enum.EasingStyle.Circular."
+		}
+
 		if ($line -match '\bGetAllBindings\b') {
 			Add-Finding "error" $relative $lineNumber "unknown-controller-method" "GameController exposes GetBindings, not GetAllBindings."
 		}

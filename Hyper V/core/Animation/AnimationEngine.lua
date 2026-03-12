@@ -15,7 +15,7 @@
 local TweenService = game:GetService("TweenService")
 
 -- Types
-export type EasingStyle = "Linear" | "Quad" | "Cubic" | "Quart" | "Quint" | "Sine" | "Expo" | "Exponential" | "Circ" | "Elastic" | "Bounce" | "Back"
+export type EasingStyle = "Linear" | "Quad" | "Cubic" | "Quart" | "Quint" | "Sine" | "Expo" | "Exponential" | "Circ" | "Circular" | "Elastic" | "Bounce" | "Back"
 export type EasingDirection = "In" | "Out" | "InOut"
 
 export type TweenConfig = {
@@ -52,7 +52,8 @@ local EasingStyles = {
     Sine = Enum.EasingStyle.Sine,
     Expo = Enum.EasingStyle.Exponential,
     Exponential = Enum.EasingStyle.Exponential,
-    Circ = Enum.EasingStyle.Circ,
+    Circ = Enum.EasingStyle.Circular,
+    Circular = Enum.EasingStyle.Circular,
     Elastic = Enum.EasingStyle.Elastic,
     Bounce = Enum.EasingStyle.Bounce,
     Back = Enum.EasingStyle.Back,
