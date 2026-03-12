@@ -1,6 +1,9 @@
 --!strict
 
 local UserInputService = game:GetService("UserInputService")
+local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
+local legacyRoot = resolveLegacyRoot(script)
+local DragLock = require(legacyRoot.core.DragLock)
 
 export type DragCallbacks = {
 	canDrag: (() -> boolean)?,
@@ -13,6 +16,7 @@ local DragController = {}
 
 function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks: DragCallbacks?): () -> ()
 	local options = callbacks or {}
+	local ownerId = tostring(frame:GetDebugId())
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart: Vector3? = nil
@@ -24,7 +28,14 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 			return
 		end
 
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			if not DragLock.TryAcquire(ownerId, input) then
+				return
+			end
+
 			dragging = true
 			activePointerType = input.UserInputType
 			dragStart = input.Position
@@ -38,7 +49,13 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 	end)
 
 	local changed = dragArea.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		if
+			dragging
+			and (
+				input.UserInputType == Enum.UserInputType.MouseMovement
+				or input.UserInputType == Enum.UserInputType.Touch
+			)
+		then
 			dragInput = input
 		end
 	end)
@@ -48,11 +65,21 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 			return
 		end
 
+		if not DragLock.IsOwner(ownerId) then
+			dragging = false
+			dragInput = nil
+			activePointerType = nil
+			return
+		end
+
 		if dragInput and input ~= dragInput then
 			return
 		end
 
-		if activePointerType == Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.MouseMovement then
+		if
+			activePointerType == Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.MouseMovement
+		then
 			return
 		end
 
@@ -79,6 +106,7 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 			dragging = false
 			dragInput = nil
 			activePointerType = nil
+			DragLock.Release(ownerId)
 
 			if options.onDragEnd then
 				options.onDragEnd(input, frame.Position)
@@ -87,6 +115,7 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 	end)
 
 	return function()
+		DragLock.Release(ownerId)
 		began:Disconnect()
 		changed:Disconnect()
 		inputChanged:Disconnect()
