@@ -14,7 +14,7 @@ export type CountRule = {
 function CountCollector.new()
     local self = setmetatable({}, CountCollector)
     
-    self.Rules = {} :: {string, CountRule}
+    self.Rules = {} :: { [string]: CountRule }
     self.DefaultMaxCount = 50
     
     return self
@@ -153,4 +153,3 @@ function CountCollector:SetDefaultMaxCount(count: number)
 end
 
 return CountCollector
-

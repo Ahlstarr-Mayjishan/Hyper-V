@@ -14,7 +14,7 @@ export type AgeRule = {
 function AgeCollector.new()
     local self = setmetatable({}, AgeCollector)
     
-    self.Rules = {} :: {string, AgeRule}
+    self.Rules = {} :: { [string]: AgeRule }
     self.DefaultThreshold = 60  -- 60 seconds default
     
     return self
@@ -100,4 +100,3 @@ function AgeCollector:SetDefaultThreshold(seconds: number)
 end
 
 return AgeCollector
-
