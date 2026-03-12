@@ -13,10 +13,16 @@ export type DragCallbacks = {
 }
 
 local DragController = {}
+local dragOwnerCounter = 0
+
+local function createOwnerId(frame: GuiObject): string
+	dragOwnerCounter += 1
+	return string.format("drag:%s:%d", frame.Name, dragOwnerCounter)
+end
 
 function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks: DragCallbacks?): () -> ()
 	local options = callbacks or {}
-	local ownerId = tostring(frame:GetDebugId())
+	local ownerId = createOwnerId(frame)
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart: Vector3? = nil

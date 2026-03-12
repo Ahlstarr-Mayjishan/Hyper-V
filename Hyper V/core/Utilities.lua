@@ -9,6 +9,12 @@ local Utf8 = utf8
 local DragLock = require(script.Parent.DragLock)
 
 local Utilities = {}
+local dragOwnerCounter = 0
+
+local function createOwnerId(frame)
+	dragOwnerCounter = dragOwnerCounter + 1
+	return string.format("drag:%s:%d", frame.Name, dragOwnerCounter)
+end
 
 local function toText(value)
 	if value == nil then
@@ -311,7 +317,7 @@ end
 -- Create draggable frame
 function Utilities:MakeDraggable(frame, dragArea, options)
 	options = options or {}
-	local ownerId = tostring(frame:GetDebugId())
+	local ownerId = createOwnerId(frame)
 
 	local dragging = false
 	local dragInput = nil
