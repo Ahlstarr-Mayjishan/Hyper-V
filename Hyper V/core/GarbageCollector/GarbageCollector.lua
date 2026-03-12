@@ -4,12 +4,12 @@
 ]]
 
 -- Module imports
-local GCEntry = require(script.types.GCEntry)
-local ObjectPool = require(script.pool.ObjectPool)
-local AgeCollector = require(script.collectors.AgeCollector)
-local CountCollector = require(script.collectors.CountCollector)
-local AdaptiveStrategy = require(script.strategies.AdaptiveStrategy)
-local IncrementalStrategy = require(script.strategies.IncrementalStrategy)
+local GCEntry = require(script.Parent.types.GCEntry)
+local ObjectPool = require(script.Parent.pool.ObjectPool)
+local AgeCollector = require(script.Parent.collectors.AgeCollector)
+local CountCollector = require(script.Parent.collectors.CountCollector)
+local AdaptiveStrategy = require(script.Parent.strategies.AdaptiveStrategy)
+local IncrementalStrategy = require(script.Parent.strategies.IncrementalStrategy)
 local MemoryListener = require(script.MemoryListener)
 local RayfieldMarker = require(script.Parent.RayfieldMarker)
 local RayfieldAPI = require(script.Parent.Parent.API.RayfieldAPI)
@@ -481,4 +481,3 @@ function GarbageCollector:Destroy()
 end
 
 return GarbageCollector
-
