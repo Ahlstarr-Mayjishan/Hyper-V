@@ -213,7 +213,7 @@ function CharacterPreviewController.new(config, context)
 
 	self._view = CharacterPreviewView.new(window, context, {
 		onPatch = function(patch)
-			self.state:update(patch)
+			self:_patchConfig(patch)
 		end,
 		onApply = function()
 			self:_apply()
@@ -226,7 +226,7 @@ function CharacterPreviewController.new(config, context)
 		end,
 		onResetView = function()
 			local defaults = Serializer.getDefaults()
-			self.state:update({
+			self:_patchConfig({
 				orbit = {
 					angle = defaults.orbit.angle,
 					radius = defaults.orbit.radius,
@@ -679,19 +679,64 @@ end
 
 function CharacterPreviewController:_apply()
 	local snapshot = self.state:getConfig()
-	self._committedConfig = Serializer.snapshot(snapshot)
-	if self._config.OnApply then
-		self._config.OnApply(snapshot)
+	local gate = self._context.protectionGate
+	if gate then
+		gate:execute("preview.commit", {
+			sourceId = self.id,
+			snapshot = snapshot,
+		}, function(request)
+			self._committedConfig = Serializer.snapshot(request.snapshot)
+			if self._config.OnApply then
+				self._config.OnApply(request.snapshot)
+			end
+		end)
+	else
+		self._committedConfig = Serializer.snapshot(snapshot)
+		if self._config.OnApply then
+			self._config.OnApply(snapshot)
+		end
 	end
 	self:close()
 end
 
 function CharacterPreviewController:_cancel()
-	self.state:setConfig(self._committedConfig)
+	self:_setConfig(self._committedConfig)
 	if self._config.OnCancel then
 		self._config.OnCancel()
 	end
 	self:close()
+end
+
+function CharacterPreviewController:_patchConfig(patch)
+	local gate = self._context.protectionGate
+	if not gate then
+		return self.state:update(patch)
+	end
+
+	local result = gate:execute("preview.patch", {
+		sourceId = self.id,
+		patch = patch,
+	}, function(request)
+		return self.state:update(request.patch)
+	end)
+
+	return result or self.state:getConfig()
+end
+
+function CharacterPreviewController:_setConfig(config)
+	local gate = self._context.protectionGate
+	if not gate then
+		return self.state:setConfig(config)
+	end
+
+	local result = gate:execute("preview.set", {
+		sourceId = self.id,
+		config = config,
+	}, function(request)
+		return self.state:setConfig(request.config)
+	end)
+
+	return result or self.state:getConfig()
 end
 
 function CharacterPreviewController:getPresetValue()
@@ -699,13 +744,13 @@ function CharacterPreviewController:getPresetValue()
 end
 
 function CharacterPreviewController:applyPresetValue(value)
-	self.state:setConfig(value)
+	self:_setConfig(value)
 	self._committedConfig = self.state:getConfig()
 	self._lastVisualConfig = nil
 end
 
 function CharacterPreviewController:setConfig(config)
-	self.state:setConfig(config)
+	self:_setConfig(config)
 	self._committedConfig = self.state:getConfig()
 	self._lastVisualConfig = nil
 end
@@ -715,17 +760,31 @@ function CharacterPreviewController:getConfig()
 end
 
 function CharacterPreviewController:reset()
-	self.state:reset()
+	self:_setConfig(Serializer.getDefaults())
 	self._lastVisualConfig = nil
 end
 
 function CharacterPreviewController:setTargetCharacter(model: Model?)
-	self._usesLiveCharacter = model == nil
-	self._targetCharacter = if model == nil then getUsableCharacter(getLocalPlayer()) else model
-	self._lastLiveCharacter = self._targetCharacter
-	self:_rebuildPreviewCharacter()
-	self._lastVisualConfig = nil
-	self:_applyVisuals(self.state:getConfig())
+	local gate = self._context.protectionGate
+	local execute = function()
+		self._usesLiveCharacter = model == nil
+		self._targetCharacter = if model == nil then getUsableCharacter(getLocalPlayer()) else model
+		self._lastLiveCharacter = self._targetCharacter
+		self:_rebuildPreviewCharacter()
+		self._lastVisualConfig = nil
+		self:_applyVisuals(self.state:getConfig())
+	end
+
+	if gate then
+		gate:execute("preview.target", {
+			sourceId = self.id,
+			model = model,
+		}, function()
+			execute()
+		end)
+	else
+		execute()
+	end
 end
 
 function CharacterPreviewController:applyTheme(theme, layout)

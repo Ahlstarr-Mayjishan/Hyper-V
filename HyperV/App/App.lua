@@ -20,6 +20,7 @@ local PresetManager = require(script.Parent.Parent.Elements.PresetManager)
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
 local InteractionAuthority = require(script.Parent.Parent.System.InteractionAuthority)
 local LayerAuthority = require(script.Parent.Parent.System.LayerAuthority)
+local ProtectionGate = require(script.Parent.Parent.System.ProtectionGate)
 
 -- Core systems
 local legacyRoot = resolveLegacyRoot(script)
@@ -65,6 +66,70 @@ local function createScreenGui(name: string): ScreenGui
 	screenGui.ResetOnSpawn = false
 	screenGui.Parent = playerGui
 	return screenGui
+end
+
+local function validatePreviewTarget(request)
+	if request == nil then
+		return false, "Missing preview target request"
+	end
+
+	if request.model == nil then
+		return true, nil
+	end
+
+	if typeof(request.model) ~= "Instance" or not request.model:IsA("Model") then
+		return false, "Preview target must be a Model"
+	end
+
+	return true, nil
+end
+
+local function validatePreviewPatch(request)
+	if request == nil or type(request.sourceId) ~= "string" or type(request.patch) ~= "table" then
+		return false, "Invalid preview patch request"
+	end
+
+	return true, nil
+end
+
+local function validatePreviewConfig(request)
+	if request == nil or type(request.sourceId) ~= "string" or type(request.config) ~= "table" then
+		return false, "Invalid preview config request"
+	end
+
+	return true, nil
+end
+
+local function validatePreviewCommit(request)
+	if request == nil or type(request.sourceId) ~= "string" or type(request.snapshot) ~= "table" then
+		return false, "Invalid preview commit request"
+	end
+
+	return true, nil
+end
+
+local function validateDockAttach(request)
+	if request == nil or request.handle == nil or request.target == nil then
+		return false, "Invalid dock attach request"
+	end
+
+	if not request.handle.view or typeof(request.handle.view) ~= "Instance" then
+		return false, "Dock handle must expose a view"
+	end
+
+	if request.target.supportsHandle and request.target:supportsHandle(request.handle) == false then
+		return false, "Dock target rejected handle"
+	end
+
+	return true, nil
+end
+
+local function validateDockDetach(request)
+	if request == nil or request.handle == nil then
+		return false, "Invalid dock detach request"
+	end
+
+	return true, nil
 end
 
 function getViewportSize(): Vector2
@@ -220,12 +285,16 @@ function App.new(config)
 	self.screenGui = createScreenGui(config.Name or "HyperV")
 	self.interactionAuthority = InteractionAuthority.new()
 	self.layerAuthority = LayerAuthority.new()
+	self.protectionGate = ProtectionGate.new()
 	self.toolkit._interactionAuthority = self.interactionAuthority
 	self.presetRegistry = PresetRegistry.new()
 	self.commandRegistry = CommandRegistry.new()
-	self.dockRegistry = DockRegistry.new()
+	self.dockRegistry = DockRegistry.new(self.protectionGate)
 	self.text = Utf8Text
-	self.overlayHost = OverlayHost.new(self.screenGui, self.theme, self.toolkit)
+	self.overlayHost = OverlayHost.new(self.screenGui, self.theme, self.toolkit, {
+		layerAuthority = self.layerAuthority,
+		interactionAuthority = self.interactionAuthority,
+	})
 	self.legacyRoot = legacyRoot
 	self.legacyRendererFactory = LegacyRendererFactory.new(self.legacyRoot, self.theme, self.toolkit, self.presetRegistry)
 
@@ -245,10 +314,30 @@ function App.new(config)
 		dockRegistry = self.dockRegistry,
 		interactionAuthority = self.interactionAuthority,
 		layerAuthority = self.layerAuthority,
+		protectionGate = self.protectionGate,
 		gc = self.gc,
 		api = self.api,
 		animation = nil :: any,
 	}
+
+	self.protectionGate:register("dock.attach", {
+		validate = validateDockAttach,
+	})
+	self.protectionGate:register("dock.detach", {
+		validate = validateDockDetach,
+	})
+	self.protectionGate:register("preview.patch", {
+		validate = validatePreviewPatch,
+	})
+	self.protectionGate:register("preview.set", {
+		validate = validatePreviewConfig,
+	})
+	self.protectionGate:register("preview.commit", {
+		validate = validatePreviewCommit,
+	})
+	self.protectionGate:register("preview.target", {
+		validate = validatePreviewTarget,
+	})
 	self.windows = {}
 	self._stylables = {}
 	local viewportConnection = nil
@@ -363,6 +452,10 @@ end
 
 function App:getLayerAuthority()
 	return self.layerAuthority
+end
+
+function App:getProtectionGate()
+	return self.protectionGate
 end
 
 function App:getPresetRegistry()
@@ -588,6 +681,7 @@ function App:createCharacterPreview(config)
 		dockRegistry = self.dockRegistry,
 		interactionAuthority = self.interactionAuthority,
 		layerAuthority = self.layerAuthority,
+		protectionGate = self.protectionGate,
 		gc = self.gc,
 		api = self.api,
 		animation = nil :: any,

@@ -31,7 +31,24 @@ function DockPanelView.new(config, context)
 	})
 	self.id = config.Id or config.Name
 	self.title = config.Title or config.Name
+	self.accept = config.Accept or "Both"
 	return self
+end
+
+function DockPanelView:supportsHandle(handle): boolean
+	if self.accept == "Both" then
+		return true
+	end
+
+	if self.accept == "Sections" then
+		return handle.kind == "section"
+	end
+
+	if self.accept == "Elements" then
+		return handle.kind ~= "section"
+	end
+
+	return true
 end
 
 function DockPanelView:attach(handle)
