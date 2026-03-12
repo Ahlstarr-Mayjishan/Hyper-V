@@ -22,6 +22,14 @@ local function getLocalPlayer(): Player
 	return Players.LocalPlayer
 end
 
+local function getUsableCharacter(player: Player): Model?
+	local character = player.Character
+	if character and character.Parent then
+		return character
+	end
+	return nil
+end
+
 local function getWorldPoint(cf: CFrame, offset: Vector3): Vector3
 	return (cf * CFrame.new(offset)).Position
 end
@@ -39,6 +47,7 @@ function CharacterPreviewController.new(config, context)
 	self._rotationDragging = false
 	self._lastPointer = nil
 	self._targetCharacter = config.TargetCharacter
+	self._lastLiveCharacter = nil
 	self.previewCharacter = nil
 
 	local window = context.app:createDetachedWindow({
@@ -93,14 +102,20 @@ function CharacterPreviewController.new(config, context)
 	end))
 
 	self._disposables:add(self._view.viewport.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			self._rotationDragging = true
 			self._lastPointer = input.Position
 		end
 	end))
 
 	self._disposables:add(self._view.viewport.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			self._rotationDragging = false
 			self._lastPointer = nil
 		end
@@ -108,7 +123,13 @@ function CharacterPreviewController.new(config, context)
 
 	self._disposables:add(UserInputService.InputChanged:Connect(function(input)
 		self._view:handleInputChanged(input)
-		if self._rotationDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		if
+			self._rotationDragging
+			and (
+				input.UserInputType == Enum.UserInputType.MouseMovement
+				or input.UserInputType == Enum.UserInputType.Touch
+			)
+		then
 			self:_onRotateMove(input.Position)
 		end
 	end))
@@ -119,11 +140,29 @@ function CharacterPreviewController.new(config, context)
 
 	local player = getLocalPlayer()
 	if self._usesLiveCharacter then
-		self._targetCharacter = player.Character
+		self._targetCharacter = getUsableCharacter(player)
+		self._lastLiveCharacter = self._targetCharacter
 		self._disposables:add(player.CharacterAdded:Connect(function(character)
 			self._targetCharacter = character
+			self._lastLiveCharacter = character
 			self:_rebuildPreviewCharacter()
 			self:_applyVisuals(self.state:getConfig())
+		end))
+		self._disposables:add(player.CharacterAppearanceLoaded:Connect(function(character)
+			if not self._usesLiveCharacter then
+				return
+			end
+			self._targetCharacter = character
+			self._lastLiveCharacter = character
+			self:_rebuildPreviewCharacter()
+			self:_applyVisuals(self.state:getConfig())
+		end))
+		self._disposables:add(player.CharacterRemoving:Connect(function(character)
+			if self._targetCharacter == character then
+				self._targetCharacter = nil
+				self._lastLiveCharacter = nil
+				self:_rebuildPreviewCharacter()
+			end
 		end))
 	end
 
@@ -133,6 +172,27 @@ function CharacterPreviewController.new(config, context)
 	self:_applyVisuals(initialSnapshot)
 
 	return self
+end
+
+function CharacterPreviewController:_refreshLiveCharacter(): boolean
+	if not self._usesLiveCharacter then
+		return false
+	end
+
+	local player = getLocalPlayer()
+	local character = getUsableCharacter(player)
+	if character ~= self._targetCharacter then
+		self._targetCharacter = character
+	end
+
+	if character ~= self._lastLiveCharacter then
+		self._lastLiveCharacter = character
+		self:_rebuildPreviewCharacter()
+		self:_applyVisuals(self.state:getConfig())
+		return true
+	end
+
+	return false
 end
 
 function CharacterPreviewController:_clearPreviewCharacter()
@@ -322,6 +382,10 @@ function CharacterPreviewController:_updateCamera(snapshot: CharacterPreviewConf
 end
 
 function CharacterPreviewController:_step(deltaTime: number)
+	if self._usesLiveCharacter and not self.previewCharacter then
+		self:_refreshLiveCharacter()
+	end
+
 	local snapshot = self.state:getConfig()
 	if snapshot.orbit.autoRotate and not self._rotationDragging then
 		snapshot = self.state:update({
@@ -397,7 +461,8 @@ end
 
 function CharacterPreviewController:setTargetCharacter(model: Model?)
 	self._usesLiveCharacter = model == nil
-	self._targetCharacter = if model == nil then getLocalPlayer().Character else model
+	self._targetCharacter = if model == nil then getUsableCharacter(getLocalPlayer()) else model
+	self._lastLiveCharacter = self._targetCharacter
 	self:_rebuildPreviewCharacter()
 	self:_applyVisuals(self.state:getConfig())
 end
@@ -410,6 +475,7 @@ function CharacterPreviewController:applyTheme(theme, layout)
 end
 
 function CharacterPreviewController:open()
+	self:_refreshLiveCharacter()
 	self.window:open()
 end
 
