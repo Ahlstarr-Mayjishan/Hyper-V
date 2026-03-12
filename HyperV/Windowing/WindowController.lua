@@ -189,6 +189,10 @@ function WindowController:createSection(config)
 end
 
 function WindowController:dispose()
+	if self._responsiveCleanup then
+		self._responsiveCleanup()
+		self._responsiveCleanup = nil
+	end
 	if self._dragCleanup then
 		self._dragCleanup()
 		self._dragCleanup = nil

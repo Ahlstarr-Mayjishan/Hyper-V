@@ -113,6 +113,10 @@ function DetachedWindowHandle:close()
 end
 
 function DetachedWindowHandle:dispose()
+	if self._responsiveCleanup then
+		self._responsiveCleanup()
+		self._responsiveCleanup = nil
+	end
 	self._legacy:Destroy()
 end
 

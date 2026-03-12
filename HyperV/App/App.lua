@@ -27,6 +27,9 @@ local HyperVAPI = require(legacyRoot.core.API.RayfieldAPI)
 local App = {}
 App.__index = App
 
+local DEFAULT_WINDOW_MARGIN = 24
+local MIN_WINDOW_SIZE = Vector2.new(360, 260)
+
 local function createScreenGui(name: string): ScreenGui
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local existing = playerGui:FindFirstChild(name)
@@ -39,6 +42,62 @@ local function createScreenGui(name: string): ScreenGui
 	screenGui.ResetOnSpawn = false
 	screenGui.Parent = playerGui
 	return screenGui
+end
+
+local function getViewportSize(): Vector2
+	local camera = workspace.CurrentCamera
+	if camera then
+		return camera.ViewportSize
+	end
+
+	return Vector2.new(1280, 720)
+end
+
+local function vectorFromSize(sizeValue: any, fallback: Vector2): Vector2
+	if typeof(sizeValue) == "Vector2" then
+		return sizeValue
+	end
+
+	if typeof(sizeValue) == "UDim2" then
+		return Vector2.new(sizeValue.X.Offset, sizeValue.Y.Offset)
+	end
+
+	return fallback
+end
+
+local function centeredPosition(size: Vector2): UDim2
+	return UDim2.new(0.5, math.floor(-size.X * 0.5), 0.5, math.floor(-size.Y * 0.5))
+end
+
+local function clampPosition(position: UDim2, scaledSize: Vector2, margin: number): UDim2
+	local viewport = getViewportSize()
+	local maxX = math.max(margin, viewport.X - scaledSize.X - margin)
+	local maxY = math.max(margin, viewport.Y - scaledSize.Y - margin)
+
+	return UDim2.new(
+		position.X.Scale,
+		math.clamp(position.X.Offset, margin, maxX),
+		position.Y.Scale,
+		math.clamp(position.Y.Offset, margin, maxY)
+	)
+end
+
+local function resolveResponsiveRect(
+	sizeValue: any,
+	positionValue: UDim2?,
+	fallbackSize: Vector2,
+	margin: number?
+): (Vector2, UDim2, number)
+	local baseSize = vectorFromSize(sizeValue, fallbackSize)
+	local viewport = getViewportSize()
+	local safeMargin = margin or DEFAULT_WINDOW_MARGIN
+	local availableWidth = math.max(MIN_WINDOW_SIZE.X, viewport.X - (safeMargin * 2))
+	local availableHeight = math.max(MIN_WINDOW_SIZE.Y, viewport.Y - (safeMargin * 2))
+	local scale = math.min(1, availableWidth / baseSize.X, availableHeight / baseSize.Y)
+	local scaledSize = Vector2.new(baseSize.X * scale, baseSize.Y * scale)
+	local resolvedPosition = clampPosition(positionValue or centeredPosition(scaledSize), scaledSize, safeMargin)
+
+	return baseSize, resolvedPosition, scale
 end
 
 local function resolveDefaultPreviewPosition(window, requestedSize: Vector2?): UDim2
@@ -75,6 +134,59 @@ local function resolveDefaultPreviewPosition(window, requestedSize: Vector2?): U
 	return candidate
 end
 
+local function attachResponsiveWindow(handle, baseSize: Vector2, margin: number?): () -> ()
+	local frame = handle.view
+	local safeMargin = margin or DEFAULT_WINDOW_MARGIN
+	local uiScale = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+	uiScale.Parent = frame
+
+	local applying = false
+	local viewportConnection = nil
+
+	local function update()
+		if applying or not frame.Parent then
+			return
+		end
+
+		applying = true
+		local viewport = getViewportSize()
+		local availableWidth = math.max(MIN_WINDOW_SIZE.X, viewport.X - (safeMargin * 2))
+		local availableHeight = math.max(MIN_WINDOW_SIZE.Y, viewport.Y - (safeMargin * 2))
+		local scale = math.min(1, availableWidth / baseSize.X, availableHeight / baseSize.Y)
+		local scaledSize = Vector2.new(baseSize.X * scale, baseSize.Y * scale)
+		uiScale.Scale = scale
+		frame.Position = clampPosition(frame.Position, scaledSize, safeMargin)
+		applying = false
+	end
+
+	local cameraConnection = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		if viewportConnection then
+			viewportConnection:Disconnect()
+			viewportConnection = nil
+		end
+
+		local camera = workspace.CurrentCamera
+		if camera then
+			viewportConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(update)
+		end
+
+		update()
+	end)
+
+	if workspace.CurrentCamera then
+		viewportConnection = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(update)
+	end
+
+	update()
+
+	return function()
+		cameraConnection:Disconnect()
+		if viewportConnection then
+			viewportConnection:Disconnect()
+		end
+	end
+end
+
 function App.new(config)
 	local self = setmetatable({}, App)
 	self.theme = ThemeTokens.getTheme(config.Theme)
@@ -104,6 +216,7 @@ function App.new(config)
 		dockRegistry = self.dockRegistry,
 		gc = self.gc,
 		api = self.api,
+		animation = nil :: any,
 	}
 	self.windows = {}
 	self._stylables = {}
@@ -156,8 +269,26 @@ function App:getAPI()
 	return self.api
 end
 
+function App:getAnimation()
+	if not self.animation then
+		self.animation = require(script.Parent.Parent.Core.Animation.AnimationEngine)
+	end
+	return self.animation
+end
+
 function App:createWindow(config)
-	local window = WindowController.new(self, config or {})
+	local nextConfig = table.clone(config or {})
+	local baseSize, resolvedPosition, _ = resolveResponsiveRect(
+		nextConfig.Size,
+		nextConfig.Position,
+		Vector2.new(900, 580),
+		nextConfig.Margin
+	)
+	nextConfig.Size = Vector2.new(baseSize.X, baseSize.Y)
+	nextConfig.Position = resolvedPosition
+
+	local window = WindowController.new(self, nextConfig)
+	window._responsiveCleanup = attachResponsiveWindow(window, baseSize, nextConfig.Margin)
 	self:_registerStylable(window)
 	table.insert(self.windows, window)
 	self.currentWindow = window
@@ -250,16 +381,26 @@ function App:createDockPanel(config)
 end
 
 function App:createDetachedWindow(config)
-	return self:_registerStylable(DetachedWindowHandle.new({
+	local baseSize, resolvedPosition, _ = resolveResponsiveRect(
+		config.Size,
+		config.Position,
+		Vector2.new(320, 220),
+		config.Margin
+	)
+
+	local handle = DetachedWindowHandle.new({
 		Id = config.Id or config.Name,
 		Name = config.Name or "DetachedWindow",
 		Title = config.Title,
-		Size = if typeof(config.Size) == "Vector2" then UDim2.new(0, config.Size.X, 0, config.Size.Y) else config.Size,
-		Position = config.Position,
+		Size = UDim2.new(0, baseSize.X, 0, baseSize.Y),
+		Position = resolvedPosition,
 		Parent = config.Parent or self.screenGui,
 		Content = config.Content,
 		OnCloseRequested = config.OnCloseRequested,
-	}, self._context))
+	}, self._context)
+
+	handle._responsiveCleanup = attachResponsiveWindow(handle, baseSize, config.Margin)
+	return self:_registerStylable(handle)
 end
 
 function App:createCommandPalette(config)
@@ -315,7 +456,8 @@ end
 
 function App:createCharacterPreview(config)
 	local nextConfig = table.clone(config or {})
-	nextConfig.Position = nextConfig.Position or resolveDefaultPreviewPosition(self.currentWindow, nextConfig.Size)
+	local previewSize = vectorFromSize(nextConfig.Size, Vector2.new(760, 560))
+	nextConfig.Position = nextConfig.Position or resolveDefaultPreviewPosition(self.currentWindow, previewSize)
 	nextConfig.Parent = nextConfig.Parent or self.screenGui
 
 	local preview = CharacterPreviewController.new(nextConfig, {
@@ -328,6 +470,7 @@ function App:createCharacterPreview(config)
 		dockRegistry = self.dockRegistry,
 		gc = self.gc,
 		api = self.api,
+		animation = nil :: any,
 		defaultPreviewPosition = nextConfig.Position,
 	})
 

@@ -29,15 +29,44 @@ function Effects.clear(cache)
 	end
 end
 
-function Effects.applyTransparency(model: Model, value: number)
+function Effects.applyTransparency(model: Model, value: number, cache)
+	cache.transparencyOriginals = cache.transparencyOriginals or setmetatable({}, { __mode = "k" })
+	cache.decalOriginals = cache.decalOriginals or setmetatable({}, { __mode = "k" })
+
+	local transparencyValue = math.clamp(value, 0, 1)
 	forEachBasePart(model, function(part)
+		if cache.transparencyOriginals[part] == nil then
+			cache.transparencyOriginals[part] = part.Transparency
+		end
+
+		local originalTransparency = cache.transparencyOriginals[part]
+		local appliedTransparency = transparencyValue
+
+		if part.Name == "Head" then
+			appliedTransparency *= 0.9
+		end
+
+		if part:FindFirstAncestorOfClass("Accessory") then
+			appliedTransparency *= 0.82
+		end
+
 		part.LocalTransparencyModifier = 0
-		part.Transparency = value
+		part.Transparency = originalTransparency + ((1 - originalTransparency) * appliedTransparency)
 	end)
 
 	for _, descendant in ipairs(model:GetDescendants()) do
 		if descendant:IsA("Decal") or descendant:IsA("Texture") then
-			descendant.Transparency = value
+			if cache.decalOriginals[descendant] == nil then
+				cache.decalOriginals[descendant] = descendant.Transparency
+			end
+
+			local originalTransparency = cache.decalOriginals[descendant]
+			local appliedTransparency = transparencyValue
+			if descendant.Name == "face" or descendant.Name == "Face" then
+				appliedTransparency *= 0.72
+			end
+
+			descendant.Transparency = originalTransparency + ((1 - originalTransparency) * appliedTransparency)
 		end
 	end
 end
@@ -206,6 +235,19 @@ function Effects.applySound(model: Model, config, cache)
 	end
 end
 
+local function getCornerSegment(parent: Frame, name: string): Frame
+	local existing = parent:FindFirstChild(name)
+	if existing and existing:IsA("Frame") then
+		return existing
+	end
+
+	local segment = Instance.new("Frame")
+	segment.Name = name
+	segment.BorderSizePixel = 0
+	segment.Parent = parent
+	return segment
+end
+
 function Effects.applyEspBox(overlayFrame: Frame, boxFrame: Frame, projectedBounds, config)
 	boxFrame.Visible = config.enabled and projectedBounds ~= nil
 	if not projectedBounds then
@@ -215,10 +257,58 @@ function Effects.applyEspBox(overlayFrame: Frame, boxFrame: Frame, projectedBoun
 	boxFrame.Size = UDim2.new(0, projectedBounds.width, 0, projectedBounds.height)
 	boxFrame.Position = UDim2.new(0, projectedBounds.minX, 0, projectedBounds.minY)
 	boxFrame.BackgroundTransparency = 1
-	boxFrame.BorderSizePixel = math.max(1, math.floor(config.thickness))
-	boxFrame.BorderColor3 = config.color
+	boxFrame.BorderSizePixel = 0
 	boxFrame.ZIndex = 4
 	boxFrame.Parent = overlayFrame
+
+	local thickness = math.max(1, math.floor(config.thickness))
+	local cornerLength = math.clamp(math.min(projectedBounds.width, projectedBounds.height) * 0.18, 14, 28)
+	local color = config.color
+
+	local topLeftHorizontal = getCornerSegment(boxFrame, "TopLeftHorizontal")
+	local topLeftVertical = getCornerSegment(boxFrame, "TopLeftVertical")
+	local topRightHorizontal = getCornerSegment(boxFrame, "TopRightHorizontal")
+	local topRightVertical = getCornerSegment(boxFrame, "TopRightVertical")
+	local bottomLeftHorizontal = getCornerSegment(boxFrame, "BottomLeftHorizontal")
+	local bottomLeftVertical = getCornerSegment(boxFrame, "BottomLeftVertical")
+	local bottomRightHorizontal = getCornerSegment(boxFrame, "BottomRightHorizontal")
+	local bottomRightVertical = getCornerSegment(boxFrame, "BottomRightVertical")
+
+	local segments = {
+		topLeftHorizontal,
+		topLeftVertical,
+		topRightHorizontal,
+		topRightVertical,
+		bottomLeftHorizontal,
+		bottomLeftVertical,
+		bottomRightHorizontal,
+		bottomRightVertical,
+	}
+
+	for _, segment in ipairs(segments) do
+		segment.BackgroundColor3 = color
+		segment.ZIndex = boxFrame.ZIndex
+	end
+
+	topLeftHorizontal.Position = UDim2.new(0, 0, 0, 0)
+	topLeftHorizontal.Size = UDim2.new(0, cornerLength, 0, thickness)
+	topLeftVertical.Position = UDim2.new(0, 0, 0, 0)
+	topLeftVertical.Size = UDim2.new(0, thickness, 0, cornerLength)
+
+	topRightHorizontal.Position = UDim2.new(1, -cornerLength, 0, 0)
+	topRightHorizontal.Size = UDim2.new(0, cornerLength, 0, thickness)
+	topRightVertical.Position = UDim2.new(1, -thickness, 0, 0)
+	topRightVertical.Size = UDim2.new(0, thickness, 0, cornerLength)
+
+	bottomLeftHorizontal.Position = UDim2.new(0, 0, 1, -thickness)
+	bottomLeftHorizontal.Size = UDim2.new(0, cornerLength, 0, thickness)
+	bottomLeftVertical.Position = UDim2.new(0, 0, 1, -cornerLength)
+	bottomLeftVertical.Size = UDim2.new(0, thickness, 0, cornerLength)
+
+	bottomRightHorizontal.Position = UDim2.new(1, -cornerLength, 1, -thickness)
+	bottomRightHorizontal.Size = UDim2.new(0, cornerLength, 0, thickness)
+	bottomRightVertical.Position = UDim2.new(1, -thickness, 1, -cornerLength)
+	bottomRightVertical.Size = UDim2.new(0, thickness, 0, cornerLength)
 end
 
 function Effects.applyEspInfo(infoLabel: TextLabel, projectedBounds, config, characterName: string, distance: number, healthText: string)

@@ -385,7 +385,7 @@ function CharacterPreviewController:_applyVisuals(snapshot: CharacterPreviewConf
 	end
 
 	self._view:setStatus(nil)
-	Effects.applyTransparency(self.previewCharacter, snapshot.transparency)
+	Effects.applyTransparency(self.previewCharacter, snapshot.transparency, self._effectCache)
 	Effects.applyCharms(self.previewCharacter, snapshot.charms, self._effectCache)
 	Effects.applyHighlight(self.previewCharacter, snapshot.highlight, self._effectCache)
 	Effects.applyTrail(self.previewCharacter, snapshot.trail, self._effectCache)
@@ -413,18 +413,20 @@ function CharacterPreviewController:_updateCamera(snapshot: CharacterPreviewConf
 	local orbit = snapshot.orbit
 	local radius = orbit.radius
 	local height = orbit.height
+	local lookTarget = pivot + Vector3.new(0, 1, 0)
 
 	if self.previewCharacter then
 		local _, size = self.previewCharacter:GetBoundingBox()
-		radius = math.max(radius, math.max(size.X, size.Z) * 1.6 + 2.5)
-		height = math.max(height, size.Y * 0.45)
+		radius = math.max(radius, math.max(size.X, size.Z) * 1.15 + (size.Y * 0.55))
+		height = math.max(height, size.Y * 0.18)
+		lookTarget = pivot + Vector3.new(0, size.Y * 0.1, 0)
 	end
 
 	self._view.camera.FieldOfView = 40
 	local x = radius * math.cos(orbit.angle)
 	local z = radius * math.sin(orbit.angle)
 	local cameraPosition = pivot + Vector3.new(x, height, z)
-	self._view.camera.CFrame = CFrame.lookAt(cameraPosition, pivot + Vector3.new(0, 1, 0))
+	self._view.camera.CFrame = CFrame.lookAt(cameraPosition, lookTarget)
 end
 
 function CharacterPreviewController:_step(deltaTime: number)

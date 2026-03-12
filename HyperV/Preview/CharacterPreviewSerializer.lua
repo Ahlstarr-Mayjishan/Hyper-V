@@ -112,11 +112,11 @@ function Serializer.getDefaults(): CharacterPreviewConfig
 	return {
 		transparency = 0,
 		orbit = {
-			angle = math.rad(35),
-			radius = 7,
-			height = 2.25,
+			angle = math.pi * 0.5,
+			radius = 6.5,
+			height = 1.1,
 			autoRotate = true,
-			speed = 0.9,
+			speed = 0.75,
 		},
 		highlight = {
 			enabled = false,
