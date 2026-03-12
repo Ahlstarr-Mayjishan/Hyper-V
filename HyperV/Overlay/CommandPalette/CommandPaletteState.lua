@@ -30,42 +30,48 @@ function CommandPaletteState.new(actions: { CommandAction }?): CommandPaletteSta
 end
 
 function CommandPaletteState:_rebuild()
+	local state = self :: any
 	local filtered = {}
-	for _, action in ipairs((self :: any).actions) do
+	for _, action in ipairs(state.actions) do
 		local haystack = string.format("%s %s", action.title or "", action.description or "")
-		if Utf8Text.contains(haystack, (self :: any).query, true) then
+		if Utf8Text.contains(haystack, state.query, true) then
 			table.insert(filtered, action)
 		end
 	end
 
-	(self :: any).filtered = filtered
-	(self :: any).selectedIndex = math.clamp((self :: any).selectedIndex, 1, math.max(#filtered, 1))
+	state.filtered = filtered
+	state.selectedIndex = math.clamp(state.selectedIndex, 1, math.max(#filtered, 1))
 end
 
 function CommandPaletteState:setActions(actions: { CommandAction })
-	(self :: any).actions = actions
+	local state = self :: any
+	state.actions = actions
 	self:_rebuild()
 end
 
 function CommandPaletteState:setQuery(query: string)
-	(self :: any).query = query
+	local state = self :: any
+	state.query = query
 	self:_rebuild()
 end
 
 function CommandPaletteState:moveSelection(delta: number)
-	local filtered = (self :: any).filtered
+	local state = self :: any
+	local filtered = state.filtered
 	if #filtered == 0 then
 		return
 	end
-	(self :: any).selectedIndex = math.clamp((self :: any).selectedIndex + delta, 1, #filtered)
+	state.selectedIndex = math.clamp(state.selectedIndex + delta, 1, #filtered)
 end
 
 function CommandPaletteState:getSelected(): CommandAction?
-	return (self :: any).filtered[(self :: any).selectedIndex]
+	local state = self :: any
+	return state.filtered[state.selectedIndex]
 end
 
 function CommandPaletteState:getFiltered(): { CommandAction }
-	return (self :: any).filtered
+	local state = self :: any
+	return state.filtered
 end
 
 return CommandPaletteState

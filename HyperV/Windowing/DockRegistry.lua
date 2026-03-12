@@ -10,16 +10,19 @@ function DockRegistry.new()
 end
 
 function DockRegistry:registerTarget(id: string, target)
-	(self :: any).targets[id] = target
+	local registry = self :: any
+	registry.targets[id] = target
 end
 
 function DockRegistry:unregisterTarget(id: string)
-	(self :: any).targets[id] = nil
+	local registry = self :: any
+	registry.targets[id] = nil
 end
 
 function DockRegistry:listTargets()
+	local registry = self :: any
 	local result = {}
-	for id, target in pairs((self :: any).targets) do
+	for id, target in pairs(registry.targets) do
 		table.insert(result, {
 			Id = id,
 			Name = target.title or id,
@@ -34,7 +37,8 @@ function DockRegistry:listTargets()
 end
 
 function DockRegistry:dock(handle, targetId: string)
-	local target = (self :: any).targets[targetId]
+	local registry = self :: any
+	local target = registry.targets[targetId]
 	if not target then
 		return
 	end

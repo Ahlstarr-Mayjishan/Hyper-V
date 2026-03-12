@@ -17,12 +17,14 @@ function CommandRegistry.new()
 end
 
 function CommandRegistry:register(command: Command)
-	(self :: any)._commands[command.id] = command
+	local registry = self :: any
+	registry._commands[command.id] = command
 end
 
 function CommandRegistry:list(): { Command }
+	local registry = self :: any
 	local commands = {}
-	for _, command in pairs((self :: any)._commands) do
+	for _, command in pairs(registry._commands) do
 		table.insert(commands, command)
 	end
 	table.sort(commands, function(left, right)

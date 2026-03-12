@@ -24,12 +24,14 @@ function PresetRegistry:register(handle: PresetHandle)
 		return
 	end
 
-	(self :: any)._entries[handle.id] = handle
+	local registry = self :: any
+	registry._entries[handle.id] = handle
 end
 
 function PresetRegistry:collect()
+	local registry = self :: any
 	local snapshot = {}
-	for id, handle in pairs((self :: any)._entries) do
+	for id, handle in pairs(registry._entries) do
 		local ok, value = pcall(function()
 			return (handle :: any):getPresetValue()
 		end)
@@ -41,8 +43,9 @@ function PresetRegistry:collect()
 end
 
 function PresetRegistry:apply(snapshot)
+	local registry = self :: any
 	for id, value in pairs(snapshot or {}) do
-		local handle = (self :: any)._entries[id]
+		local handle = registry._entries[id]
 		if handle and handle.applyPresetValue then
 			pcall(function()
 				(handle :: any):applyPresetValue(value)
@@ -52,17 +55,20 @@ function PresetRegistry:apply(snapshot)
 end
 
 function PresetRegistry:save(name: string)
-	(self :: any)._presets[name] = self:collect()
+	local registry = self :: any
+	registry._presets[name] = self:collect()
 end
 
 function PresetRegistry:load(name: string)
-	self:apply((self :: any)._presets[name])
+	local registry = self :: any
+	self:apply(registry._presets[name])
 end
 
 function PresetRegistry:export(name: string): string
+	local registry = self :: any
 	return HttpService:JSONEncode({
 		name = name,
-		state = (self :: any)._presets[name] or {},
+		state = registry._presets[name] or {},
 	})
 end
 
@@ -73,13 +79,15 @@ function PresetRegistry:import(name: string, payload: string): boolean
 	if not ok or type(decoded) ~= "table" then
 		return false
 	end
-	(self :: any)._presets[name] = decoded.state or {}
+	local registry = self :: any
+	registry._presets[name] = decoded.state or {}
 	return true
 end
 
 function PresetRegistry:list(): { string }
+	local registry = self :: any
 	local names = {}
-	for name in pairs((self :: any)._presets) do
+	for name in pairs(registry._presets) do
 		table.insert(names, name)
 	end
 	table.sort(names)
