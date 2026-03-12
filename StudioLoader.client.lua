@@ -83,9 +83,6 @@ local function openCharacterPreview()
 			espInfo = {
 				enabled = true,
 			},
-			tracer = {
-				enabled = true,
-			},
 			charms = {
 				tintEnabled = true,
 				tintColor = Color3.fromRGB(255, 210, 110),

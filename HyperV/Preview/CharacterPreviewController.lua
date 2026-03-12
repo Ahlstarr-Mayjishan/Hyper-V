@@ -18,6 +18,54 @@ local DEFAULT_SIZE = Vector2.new(760, 560)
 local CharacterPreviewController = {}
 CharacterPreviewController.__index = CharacterPreviewController
 
+local function deepClone(value: any): any
+	if type(value) ~= "table" then
+		return value
+	end
+
+	local clone = {}
+	for key, child in pairs(value) do
+		clone[key] = deepClone(child)
+	end
+	return clone
+end
+
+local function deepEqual(left: any, right: any): boolean
+	if type(left) ~= type(right) then
+		return false
+	end
+
+	if type(left) ~= "table" then
+		return left == right
+	end
+
+	for key, value in pairs(left) do
+		if not deepEqual(value, right[key]) then
+			return false
+		end
+	end
+
+	for key in pairs(right) do
+		if left[key] == nil then
+			return false
+		end
+	end
+
+	return true
+end
+
+local function getVisualConfig(snapshot: CharacterPreviewConfig)
+	return {
+		transparency = snapshot.transparency,
+		highlight = snapshot.highlight,
+		trail = snapshot.trail,
+		particles = snapshot.particles,
+		forceField = snapshot.forceField,
+		sound = snapshot.sound,
+		charms = snapshot.charms,
+	}
+end
+
 local function getLocalPlayer(): Player
 	return Players.LocalPlayer
 end
@@ -64,6 +112,7 @@ function CharacterPreviewController.new(config, context)
 	self._usesLiveCharacter = config.TargetCharacter == nil
 	self._disposables = DisposableStore.new()
 	self._effectCache = {}
+	self._lastVisualConfig = nil
 	self._rotationDragging = false
 	self._lastPointer = nil
 	self._targetCharacter = config.TargetCharacter
@@ -117,7 +166,11 @@ function CharacterPreviewController.new(config, context)
 
 	self._disposables:add(self.state:subscribe(function(snapshot)
 		self._view:setConfig(snapshot)
-		self:_applyVisuals(snapshot)
+		local nextVisualConfig = getVisualConfig(snapshot)
+		if not deepEqual(self._lastVisualConfig, nextVisualConfig) then
+			self:_applyVisuals(snapshot)
+			self._lastVisualConfig = deepClone(nextVisualConfig)
+		end
 		self:_updateCamera(snapshot)
 		self:_updateProjectedEffects(snapshot)
 	end))
@@ -167,6 +220,7 @@ function CharacterPreviewController.new(config, context)
 			self._targetCharacter = character
 			self._lastLiveCharacter = character
 			self:_rebuildPreviewCharacter()
+			self._lastVisualConfig = nil
 			self:_applyVisuals(self.state:getConfig())
 		end))
 		self._disposables:add(player.CharacterAppearanceLoaded:Connect(function(character)
@@ -176,6 +230,7 @@ function CharacterPreviewController.new(config, context)
 			self._targetCharacter = character
 			self._lastLiveCharacter = character
 			self:_rebuildPreviewCharacter()
+			self._lastVisualConfig = nil
 			self:_applyVisuals(self.state:getConfig())
 		end))
 		self._disposables:add(player.CharacterRemoving:Connect(function(character)
@@ -209,12 +264,14 @@ function CharacterPreviewController:_refreshLiveCharacter(): boolean
 	if character ~= self._lastLiveCharacter then
 		self._lastLiveCharacter = character
 		self:_rebuildPreviewCharacter()
+		self._lastVisualConfig = nil
 		self:_applyVisuals(self.state:getConfig())
 		return true
 	end
 
 	if character and not self.previewCharacter then
 		self:_rebuildPreviewCharacter()
+		self._lastVisualConfig = nil
 		self:_applyVisuals(self.state:getConfig())
 		return self.previewCharacter ~= nil
 	end
@@ -300,6 +357,7 @@ function CharacterPreviewController:_rebuildPreviewCharacter()
 	clone.Parent = self._view.worldModel
 	self.previewCharacter = clone
 	self._view:setStatus(nil)
+	self._lastVisualConfig = nil
 end
 
 function CharacterPreviewController:_getPivotPosition(): Vector3
@@ -502,11 +560,13 @@ end
 function CharacterPreviewController:applyPresetValue(value)
 	self.state:setConfig(value)
 	self._committedConfig = self.state:getConfig()
+	self._lastVisualConfig = nil
 end
 
 function CharacterPreviewController:setConfig(config)
 	self.state:setConfig(config)
 	self._committedConfig = self.state:getConfig()
+	self._lastVisualConfig = nil
 end
 
 function CharacterPreviewController:getConfig()
@@ -515,6 +575,7 @@ end
 
 function CharacterPreviewController:reset()
 	self.state:reset()
+	self._lastVisualConfig = nil
 end
 
 function CharacterPreviewController:setTargetCharacter(model: Model?)
@@ -522,6 +583,7 @@ function CharacterPreviewController:setTargetCharacter(model: Model?)
 	self._targetCharacter = if model == nil then getUsableCharacter(getLocalPlayer()) else model
 	self._lastLiveCharacter = self._targetCharacter
 	self:_rebuildPreviewCharacter()
+	self._lastVisualConfig = nil
 	self:_applyVisuals(self.state:getConfig())
 end
 
