@@ -3,7 +3,7 @@
     Export all animation utilities
 ]]
 
-local AnimationEngine = require(script.AnimationEngine)
+local AnimationEngine = require(script.Parent.AnimationEngine)
 
 return {
     Engine = AnimationEngine,
@@ -20,4 +20,3 @@ return {
     Bounce = AnimationEngine.Bounce,
     Wait = AnimationEngine.Wait,
 }
-

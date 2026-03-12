@@ -10,8 +10,8 @@ local AgeCollector = require(script.Parent.collectors.AgeCollector)
 local CountCollector = require(script.Parent.collectors.CountCollector)
 local AdaptiveStrategy = require(script.Parent.strategies.AdaptiveStrategy)
 local IncrementalStrategy = require(script.Parent.strategies.IncrementalStrategy)
-local MemoryListener = require(script.MemoryListener)
-local RayfieldMarker = require(script.Parent.RayfieldMarker)
+local MemoryListener = require(script.Parent.MemoryListener)
+local RayfieldMarker = require(script.Parent.Parent.RayfieldMarker)
 local RayfieldAPI = require(script.Parent.Parent.API.RayfieldAPI)
 
 local GarbageCollector = {}

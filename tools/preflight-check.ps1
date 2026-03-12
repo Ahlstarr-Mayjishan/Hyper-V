@@ -79,6 +79,10 @@ function Scan-Patterns {
 			Add-Finding "error" $relative $lineNumber "bad-relative-require" "Use script.Parent for sibling folders under a ModuleScript."
 		}
 
+		if ($line -match 'require\(script\.[A-Za-z_][A-Za-z0-9_]*\)') {
+			Add-Finding "warning" $relative $lineNumber "bare-script-require" "Bare require(script.X) is fragile in Rojo/Studio; verify X is a real child of the ModuleScript, not a sibling."
+		}
+
 		if ($line -match ':: \{string,') {
 			Add-Finding "error" $relative $lineNumber "bad-dictionary-type" "Dictionary type syntax must use { [string]: T }."
 		}
