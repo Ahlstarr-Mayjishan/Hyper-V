@@ -209,6 +209,7 @@ function CharacterPreviewController.new(config, context)
 	self.state = CharacterPreviewState.new(config.InitialConfig)
 	self._committedConfig = self.state:getConfig()
 	self._zoomTargetRadius = self.state:getConfig().orbit.radius
+	self._zoomCurrentRadius = self._zoomTargetRadius
 
 	self._view = CharacterPreviewView.new(window, context, {
 		onPatch = function(patch)
@@ -237,6 +238,7 @@ function CharacterPreviewController.new(config, context)
 
 	self._disposables:add(self.state:subscribe(function(snapshot)
 		self._zoomTargetRadius = self._zoomTargetRadius or snapshot.orbit.radius
+		self._zoomCurrentRadius = self._zoomCurrentRadius or snapshot.orbit.radius
 		self._view:setConfig(snapshot)
 		local nextVisualConfig = getVisualConfig(snapshot)
 		if not deepEqual(self._lastVisualConfig, nextVisualConfig) then
@@ -580,7 +582,7 @@ end
 function CharacterPreviewController:_updateCamera(snapshot: CharacterPreviewConfig)
 	local pivot = self:_getPivotPosition()
 	local orbit = snapshot.orbit
-	local radius = orbit.radius
+	local radius = self._zoomCurrentRadius or orbit.radius
 	local height = orbit.height
 	local lookTarget = pivot + Vector3.new(0, 1, 0)
 	local baseVerticalOffset = 0
@@ -607,12 +609,16 @@ function CharacterPreviewController:_step(deltaTime: number)
 
 	local snapshot = self.state:getConfig()
 	if math.abs(snapshot.orbit.radius - self._zoomTargetRadius) > 0.01 then
-		local alpha = math.clamp(deltaTime * 14, 0, 1)
+		local alpha = math.clamp(deltaTime * 20, 0, 1)
+		local nextRadius = snapshot.orbit.radius + ((self._zoomTargetRadius - snapshot.orbit.radius) * alpha)
+		self._zoomCurrentRadius = nextRadius
 		snapshot = self.state:update({
 			orbit = {
-				radius = snapshot.orbit.radius + ((self._zoomTargetRadius - snapshot.orbit.radius) * alpha),
+				radius = nextRadius,
 			},
 		})
+	else
+		self._zoomCurrentRadius = snapshot.orbit.radius
 	end
 	if snapshot.orbit.autoRotate and not self._rotationDragging then
 		snapshot = self.state:update({
@@ -640,7 +646,15 @@ function CharacterPreviewController:_onZoomInput(input: InputObject)
 		return
 	end
 
-	self._zoomTargetRadius = math.clamp(self._zoomTargetRadius - (wheelDelta * 0.85), 2.4, 18)
+	local currentRadius = snapshot.orbit.radius
+	self._zoomTargetRadius = math.clamp(self._zoomTargetRadius - (wheelDelta * 0.95), 2.4, 18)
+	local immediateRadius = currentRadius + ((self._zoomTargetRadius - currentRadius) * 0.65)
+	self._zoomCurrentRadius = immediateRadius
+	self.state:update({
+		orbit = {
+			radius = immediateRadius,
+		},
+	})
 end
 
 function CharacterPreviewController:_onRotateMove(position: Vector3)
