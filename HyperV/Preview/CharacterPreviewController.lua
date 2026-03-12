@@ -9,6 +9,7 @@ local ContextActionService = game:GetService("ContextActionService")
 local DisposableStore = require(script.Parent.Parent.Core.DisposableStore)
 local Effects = require(script.Parent.CharacterPreviewEffects)
 local Renderer = require(script.Parent.CharacterPreviewRenderer)
+local ResolvedState = require(script.Parent.CharacterPreviewResolvedState)
 local Serializer = require(script.Parent.CharacterPreviewSerializer)
 local CharacterPreviewState = require(script.Parent.CharacterPreviewState)
 local CharacterPreviewView = require(script.Parent.CharacterPreviewView)
@@ -54,18 +55,6 @@ local function deepEqual(left: any, right: any): boolean
 	end
 
 	return true
-end
-
-local function getVisualConfig(snapshot: CharacterPreviewConfig)
-	return {
-		transparency = snapshot.transparency,
-		highlight = snapshot.highlight,
-		trail = snapshot.trail,
-		particles = snapshot.particles,
-		forceField = snapshot.forceField,
-		sound = snapshot.sound,
-		charms = snapshot.charms,
-	}
 end
 
 local function getLocalPlayer(): Player
@@ -240,13 +229,13 @@ function CharacterPreviewController.new(config, context)
 		self._zoomTargetRadius = self._zoomTargetRadius or snapshot.orbit.radius
 		self._zoomCurrentRadius = self._zoomCurrentRadius or snapshot.orbit.radius
 		self._view:setConfig(snapshot)
-		local nextVisualConfig = getVisualConfig(snapshot)
+		local nextVisualConfig = ResolvedState.getVisualConfig(snapshot)
 		if not deepEqual(self._lastVisualConfig, nextVisualConfig) then
 			self:_applyVisuals(snapshot)
 			self._lastVisualConfig = deepClone(nextVisualConfig)
 		end
 		self:_updateCamera(snapshot)
-		self:_updateProjectedEffects(snapshot)
+		self:_updateProjectedEffects(self:_resolveState(snapshot))
 	end))
 
 	self._disposables:add(self._view.viewport.InputBegan:Connect(function(input)
@@ -564,19 +553,33 @@ function CharacterPreviewController:_applyVisuals(snapshot: CharacterPreviewConf
 	Effects.applySound(self.previewCharacter, snapshot.sound, self._effectCache)
 end
 
-function CharacterPreviewController:_updateProjectedEffects(snapshot: CharacterPreviewConfig)
-	local bounds = self:_projectBounds()
-	Effects.applyEspBox(self._view.viewportOverlay, self._view.boxFrame, bounds, snapshot.espBox)
+function CharacterPreviewController:_resolveState(snapshot: CharacterPreviewConfig)
+	return ResolvedState.resolve(snapshot, {
+		projectedBounds = self:_projectBounds(),
+		characterName = if self._targetCharacter then self._targetCharacter.Name else "Character",
+		distance = self:_getDistance(),
+		healthText = self:_getHealthText(),
+	})
+end
+
+function CharacterPreviewController:_updateProjectedEffects(resolvedState)
+	local bounds = resolvedState.espBox.bounds
+	Effects.applyEspBox(self._view.viewportOverlay, self._view.boxFrame, bounds, resolvedState.espBox.config)
 	Effects.applyEspInfo(
 		self._view.infoCard,
 		self._view.infoLabel,
-		bounds,
-		snapshot.espInfo,
-		if self._targetCharacter then self._targetCharacter.Name else "Character",
-		self:_getDistance(),
-		self:_getHealthText()
+		resolvedState.espInfo.bounds,
+		resolvedState.espInfo.config,
+		resolvedState.espInfo.characterName,
+		resolvedState.espInfo.distance,
+		resolvedState.espInfo.healthText
 	)
-	Effects.applyTracer(self._view.tracerFrame, bounds, self._view.viewportOverlay.AbsoluteSize, snapshot.tracer)
+	Effects.applyTracer(
+		self._view.tracerFrame,
+		resolvedState.tracer.bounds,
+		self._view.viewportOverlay.AbsoluteSize,
+		resolvedState.tracer.config
+	)
 end
 
 function CharacterPreviewController:_updateCamera(snapshot: CharacterPreviewConfig)
@@ -634,7 +637,7 @@ function CharacterPreviewController:_step(deltaTime: number)
 	if self.previewCharacter then
 		Effects.applyTrail(self.previewCharacter, snapshot.trail, self._effectCache)
 	end
-	self:_updateProjectedEffects(snapshot)
+	self:_updateProjectedEffects(self:_resolveState(snapshot))
 end
 
 function CharacterPreviewController:_onZoomInput(input: InputObject)

@@ -44,7 +44,7 @@ function InteractionAuthority:tryAcquire(domain: string, config: ClaimConfig): b
 			return false
 		end
 
-		if nextPriority <= existing.priority then
+		if nextPriority < existing.priority then
 			return false
 		end
 	end

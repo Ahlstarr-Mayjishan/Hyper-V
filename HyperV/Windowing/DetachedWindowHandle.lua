@@ -19,6 +19,7 @@ function DetachedWindowHandle.new(config, context)
 	self._content = config.Content
 	self._minSize = config.MinSize or Vector2.new(420, 320)
 	self._maxSize = config.MaxSize or Vector2.new(1440, 1040)
+	self._dockMenuClaimId = self.id .. ":dockMenu"
 
 	local legacy = LegacyDetachedWindow.new({
 		Name = self.id,
@@ -108,6 +109,21 @@ function DetachedWindowHandle.new(config, context)
 			self:activate()
 		end
 	end)
+
+	if self._legacy.DockMenu then
+		self._legacy.DockMenu:GetPropertyChangedSignal("Visible"):Connect(function()
+			if self._legacy.DockMenu.Visible then
+				self._context.interactionAuthority:tryAcquire("dockMenu", {
+					id = self._dockMenuClaimId,
+					priority = 30,
+					allowSteal = true,
+				})
+				self:activate()
+			else
+				self._context.interactionAuthority:release("dockMenu", self._dockMenuClaimId)
+			end
+		end)
+	end
 	return self
 end
 
@@ -209,6 +225,7 @@ end
 
 function DetachedWindowHandle:close()
 	self.view.Visible = false
+	self._context.interactionAuthority:release("dockMenu", self._dockMenuClaimId)
 	self._context.interactionAuthority:releaseFocus(self.id)
 end
 
@@ -225,6 +242,7 @@ function DetachedWindowHandle:dispose()
 		self._layerCleanup()
 		self._layerCleanup = nil
 	end
+	self._context.interactionAuthority:release("dockMenu", self._dockMenuClaimId)
 	self._context.interactionAuthority:clearOwner(self.id)
 	self._legacy:Destroy()
 end
