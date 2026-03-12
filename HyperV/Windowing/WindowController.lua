@@ -2,7 +2,7 @@
 
 local SectionHandle = require(script.Parent.SectionHandle)
 local DragController = require(script.Parent.Parent.Input.DragController)
-local LayerAuthority = require(script.Parent.Parent.System.LayerAuthority)
+local LayerAuthority = require(script.Parent.Parent.System.Authority.LayerAuthority)
 
 local WindowController = {}
 WindowController.__index = WindowController

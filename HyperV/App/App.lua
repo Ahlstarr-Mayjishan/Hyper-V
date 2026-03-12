@@ -19,9 +19,9 @@ local CharacterPreviewController = require(script.Parent.Parent.Preview.Characte
 local LegacyRendererFactory = require(script.Parent.Parent.Elements.LegacyRendererFactory)
 local PresetManager = require(script.Parent.Parent.Elements.PresetManager)
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
-local InteractionAuthority = require(script.Parent.Parent.System.InteractionAuthority)
-local LayerAuthority = require(script.Parent.Parent.System.LayerAuthority)
-local ProtectionGate = require(script.Parent.Parent.System.ProtectionGate)
+local InteractionAuthority = require(script.Parent.Parent.System.Authority.InteractionAuthority)
+local LayerAuthority = require(script.Parent.Parent.System.Authority.LayerAuthority)
+local ProtectionGate = require(script.Parent.Parent.System.Authority.ProtectionGate)
 
 -- Core systems
 local legacyRoot = resolveLegacyRoot(script)

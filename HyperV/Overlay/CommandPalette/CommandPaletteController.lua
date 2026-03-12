@@ -5,7 +5,7 @@ local UserInputService = game:GetService("UserInputService")
 local DisposableStore = require(script.Parent.Parent.Parent.Core.DisposableStore)
 local CommandPaletteState = require(script.Parent.CommandPaletteState)
 local CommandPaletteView = require(script.Parent.CommandPaletteView)
-local LayerAuthority = require(script.Parent.Parent.Parent.System.LayerAuthority)
+local LayerAuthority = require(script.Parent.Parent.Parent.System.Authority.LayerAuthority)
 
 local CommandPaletteController = {}
 CommandPaletteController.__index = CommandPaletteController

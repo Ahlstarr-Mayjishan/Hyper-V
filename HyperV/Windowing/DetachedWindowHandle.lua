@@ -1,7 +1,7 @@
 --!strict
 
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
-local LayerAuthority = require(script.Parent.Parent.System.LayerAuthority)
+local LayerAuthority = require(script.Parent.Parent.System.Authority.LayerAuthority)
 
 local legacyRoot = resolveLegacyRoot(script)
 local LegacyDetachedWindow = require(legacyRoot.Feature.DetachedWindow)
