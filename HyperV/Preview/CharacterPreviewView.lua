@@ -516,11 +516,19 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self.boxFrame = boxFrame
 	self.infoCard = infoCard
 	self.infoLabel = infoLabel
+	self._infoPadding = infoPadding
 	self.tracerFrame = tracerFrame
 	self.statusLabel = statusLabel
 	self.camera = camera
 	self.worldModel = worldModel
 	self.controlsPanel = controlsPanel
+	self._controlsPadding = controlsPadding
+	self._controlsLayout = controlsLayout
+	self._actionsRow = actionsRow
+	self._actionLayout = actionLayout
+	self._cancelButton = cancelButton
+	self._resetButton = resetButton
+	self._applyButton = applyButton
 
 	local cameraSection = createSection(controlsPanel, context.toolkit, context.theme, "Camera")
 	local transparencySection = createSection(controlsPanel, context.toolkit, context.theme, "Transparency")
@@ -996,6 +1004,39 @@ function CharacterPreviewView:applyTheme(theme)
 			end
 		end
 	end
+end
+
+function CharacterPreviewView:applyWhitespace(scale)
+	local spacingScale = scale or 1
+	local panelWidth = math.floor(230 * math.clamp(spacingScale, 0.94, 1.14) + 0.5)
+	local actionHeight = math.floor(44 * spacingScale + 0.5)
+	local inset = math.floor(8 * spacingScale + 0.5)
+	local listGap = math.floor(8 * spacingScale + 0.5)
+	local buttonGap = math.floor(6 * spacingScale + 0.5)
+	local sideButtonHeight = math.floor(32 * spacingScale + 0.5)
+
+	self.viewport.Size = UDim2.new(1, -(panelWidth + 16), 1, -(actionHeight + 12))
+	self.controlsPanel.Size = UDim2.new(0, panelWidth, 1, -(actionHeight + 12))
+	self.controlsPanel.Position = UDim2.new(1, -panelWidth, 0, 0)
+	self._controlsPadding.PaddingTop = UDim.new(0, inset)
+	self._controlsPadding.PaddingBottom = UDim.new(0, inset)
+	self._controlsPadding.PaddingLeft = UDim.new(0, inset)
+	self._controlsPadding.PaddingRight = UDim.new(0, inset)
+	self._controlsLayout.Padding = UDim.new(0, listGap)
+
+	self._actionsRow.Size = UDim2.new(0, panelWidth, 0, actionHeight)
+	self._actionsRow.Position = UDim2.new(1, -panelWidth, 1, -actionHeight)
+	self._actionLayout.Padding = UDim.new(0, buttonGap)
+	self._cancelButton.Size = UDim2.new(0, math.floor(70 * spacingScale + 0.5), 0, sideButtonHeight)
+	self._resetButton.Size = UDim2.new(0, math.floor(70 * spacingScale + 0.5), 0, sideButtonHeight)
+	self._applyButton.Size = UDim2.new(0, math.floor(78 * spacingScale + 0.5), 0, sideButtonHeight)
+
+	local infoInsetY = math.floor(7 * spacingScale + 0.5)
+	local infoInsetX = math.floor(8 * spacingScale + 0.5)
+	self._infoPadding.PaddingTop = UDim.new(0, infoInsetY)
+	self._infoPadding.PaddingBottom = UDim.new(0, infoInsetY)
+	self._infoPadding.PaddingLeft = UDim.new(0, infoInsetX)
+	self._infoPadding.PaddingRight = UDim.new(0, infoInsetX)
 end
 
 function CharacterPreviewView:open()

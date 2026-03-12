@@ -733,6 +733,11 @@ function CharacterPreviewController:applyTheme(theme, layout)
 	self._view:applyTheme(self._context.theme)
 end
 
+function CharacterPreviewController:applyWhitespace(scale)
+	self.window:applyWhitespace(scale)
+	self._view:applyWhitespace(scale)
+end
+
 function CharacterPreviewController:open()
 	self:_refreshLiveCharacter()
 	self:_rebuildPreviewCharacter()

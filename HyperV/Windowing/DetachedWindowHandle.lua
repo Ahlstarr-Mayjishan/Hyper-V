@@ -151,6 +151,24 @@ function DetachedWindowHandle:applyTheme(theme)
 	end
 end
 
+function DetachedWindowHandle:applyWhitespace(scale)
+	local spacingScale = scale or 1
+	local buttonSize = math.floor(32 * spacingScale + 0.5)
+	local rightInset = math.floor(8 * spacingScale + 0.5)
+
+	if self._legacy.DockButton then
+		self._legacy.DockButton.Size = UDim2.new(0, math.floor(92 * spacingScale + 0.5), 0, buttonSize)
+		self._legacy.DockButton.Position = UDim2.new(1, -(self._legacy.DockButton.Size.X.Offset + buttonSize + rightInset + 8), 0, rightInset)
+	end
+	if self._legacy.CloseButton then
+		self._legacy.CloseButton.Size = UDim2.new(0, buttonSize, 0, buttonSize)
+		self._legacy.CloseButton.Position = UDim2.new(1, -(buttonSize + rightInset), 0, rightInset)
+	end
+	if self._legacy.TitleLabel then
+		self._legacy.TitleLabel.Position = UDim2.new(0, math.floor(14 * spacingScale + 0.5), 0, 0)
+	end
+end
+
 function DetachedWindowHandle:open()
 	if self._legacy and self._legacy.BringToFront then
 		self._legacy:BringToFront()

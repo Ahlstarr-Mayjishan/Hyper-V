@@ -1,5 +1,7 @@
 --!strict
 
+local TextService = game:GetService("TextService")
+
 local Effects = {}
 
 local function forEachBasePart(model: Model, callback: (BasePart) -> ())
@@ -364,8 +366,11 @@ function Effects.applyEspInfo(infoCard: Frame, infoLabel: TextLabel, projectedBo
 
 	infoLabel.Text = table.concat(lines, "\n")
 	infoLabel.TextColor3 = config.textColor
-	infoCard.Position = UDim2.new(0, projectedBounds.minX, 0, math.max(0, projectedBounds.minY - 42))
-	infoCard.Size = UDim2.new(0, math.max(projectedBounds.width + 10, 108), 0, 40)
+	local maxWidth = math.clamp(math.max(projectedBounds.width + 18, 112), 112, 220)
+	local measured = TextService:GetTextSize(infoLabel.Text, infoLabel.TextSize, infoLabel.Font, Vector2.new(maxWidth - 16, 1000))
+	local cardHeight = math.max(34, measured.Y + 14)
+	infoCard.Position = UDim2.new(0, projectedBounds.minX, 0, math.max(0, projectedBounds.minY - cardHeight - 6))
+	infoCard.Size = UDim2.new(0, maxWidth, 0, cardHeight)
 	infoLabel.Position = UDim2.new(0, 0, 0, 0)
 	infoLabel.Size = UDim2.new(1, 0, 1, 0)
 end

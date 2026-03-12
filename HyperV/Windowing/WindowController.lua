@@ -117,6 +117,7 @@ function WindowController.new(app, config)
 	self._titleBar = titleBar
 	self._titleLabel = title
 	self._tabBar = tabBar
+	self._tabLayout = tabLayout
 	self._closeButton = closeButton
 	self._resizeCorner = resizeCorner
 	self.parentFrame = app.screenGui
@@ -160,6 +161,30 @@ function WindowController:applyTheme(theme, layout)
 		local selected = self.activeTab == tab or self.activeTab == self.tabs[tabKey]
 		tab.button.BackgroundColor3 = selected and self.theme.Accent or self.theme.Second
 		tab.button.TextColor3 = selected and Color3.new(1, 1, 1) or self.theme.Text
+	end
+end
+
+function WindowController:applyWhitespace(scale)
+	local spacingScale = scale or 1
+	local inset = math.floor(self.layout.ContentInset * spacingScale + 0.5)
+	local tabGap = math.floor(6 * spacingScale + 0.5)
+	local titlePadding = math.floor(12 * spacingScale + 0.5)
+	local closeSize = math.floor(24 * spacingScale + 0.5)
+	local closeInset = math.floor(6 * spacingScale + 0.5)
+
+	self._titleLabel.Position = UDim2.new(0, titlePadding, 0, 0)
+	self._titleLabel.Size = UDim2.new(1, -(titlePadding + closeSize + closeInset + 8), 1, 0)
+	self._closeButton.Size = UDim2.new(0, closeSize, 0, closeSize)
+	self._closeButton.Position = UDim2.new(1, -(closeSize + closeInset), 0.5, math.floor(-closeSize * 0.5))
+
+	self._tabBar.Size = UDim2.new(1, -(inset * 2), 0, self.layout.TabBarHeight)
+	self._tabBar.Position = UDim2.new(0, inset, 0, self.layout.TitleBarHeight + math.floor(6 * spacingScale + 0.5))
+	self._tabLayout.Padding = UDim.new(0, tabGap)
+	self.contentFrame.Size = UDim2.new(1, -(inset * 2), 1, -(self.layout.TitleBarHeight + self.layout.TabBarHeight + math.floor(20 * spacingScale + 0.5)))
+	self.contentFrame.Position = UDim2.new(0, inset, 0, self.layout.TitleBarHeight + self.layout.TabBarHeight + math.floor(12 * spacingScale + 0.5))
+
+	for _, tab in pairs(self.tabs) do
+		tab.button.Size = UDim2.new(0, math.floor(self.layout.TabButtonWidth * spacingScale + 0.5), 0, self.layout.TabButtonHeight)
 	end
 end
 

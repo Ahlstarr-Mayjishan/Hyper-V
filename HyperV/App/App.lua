@@ -30,6 +30,21 @@ App.__index = App
 local DEFAULT_WINDOW_MARGIN = 24
 local MIN_WINDOW_SIZE = Vector2.new(360, 260)
 
+local function computeWhitespaceScale(): number
+	local viewport = getViewportSize()
+	local shortestSide = math.min(viewport.X, viewport.Y)
+	if shortestSide <= 720 then
+		return 0.92
+	end
+
+	if shortestSide >= 1440 then
+		return 1.18
+	end
+
+	local alpha = (shortestSide - 720) / (1440 - 720)
+	return 0.92 + (0.26 * alpha)
+end
+
 local function createScreenGui(name: string): ScreenGui
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local existing = playerGui:FindFirstChild(name)
@@ -212,6 +227,7 @@ function App.new(config)
 		app = self,
 		theme = self.theme,
 		layout = self.layout,
+		whitespaceScale = computeWhitespaceScale(),
 		toolkit = self.toolkit,
 		presetRegistry = self.presetRegistry,
 		commandRegistry = self.commandRegistry,
@@ -222,12 +238,50 @@ function App.new(config)
 	}
 	self.windows = {}
 	self._stylables = {}
+	local viewportConnection = nil
+	local function refreshWhitespace()
+		self._context.whitespaceScale = computeWhitespaceScale()
+		local activeStylables = {}
+		for _, stylable in ipairs(self._stylables) do
+			if stylable and stylable.view and stylable.view.Parent then
+				if stylable.applyWhitespace then
+					stylable:applyWhitespace(self._context.whitespaceScale)
+				end
+				table.insert(activeStylables, stylable)
+			end
+		end
+		self._stylables = activeStylables
+	end
+	local cameraConnection = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		if viewportConnection then
+			viewportConnection:Disconnect()
+			viewportConnection = nil
+		end
+		local camera = workspace.CurrentCamera
+		if camera then
+			viewportConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshWhitespace)
+		end
+		refreshWhitespace()
+	end)
+	if workspace.CurrentCamera then
+		viewportConnection = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshWhitespace)
+	end
+	self._whitespaceCleanup = function()
+		cameraConnection:Disconnect()
+		if viewportConnection then
+			viewportConnection:Disconnect()
+		end
+	end
 	self.currentWindow = nil
+	refreshWhitespace()
 	return self
 end
 
 function App:_registerStylable(stylable)
 	table.insert(self._stylables, stylable)
+	if stylable.applyWhitespace then
+		stylable:applyWhitespace(self._context.whitespaceScale)
+	end
 	return stylable
 end
 
@@ -536,6 +590,11 @@ function App:dispose()
 	-- Destroy screen gui
 	if self.screenGui and self.screenGui.Parent then
 		self.screenGui:Destroy()
+	end
+
+	if self._whitespaceCleanup then
+		self._whitespaceCleanup()
+		self._whitespaceCleanup = nil
 	end
 
 	-- Clear references
