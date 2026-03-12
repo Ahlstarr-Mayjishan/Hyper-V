@@ -64,35 +64,56 @@ local function createSection(parent: Instance, toolkit, theme, titleText: string
 	return body
 end
 
-local function createRow(parent: Instance, theme, titleText: string)
+local function createRow(parent: Instance, theme, titleText: string, controlWidth: number?, rowHeight: number?)
+	local reservedWidth = controlWidth or 80
+	local height = rowHeight or 26
 	local row = Instance.new("Frame")
-	row.Size = UDim2.new(1, 0, 0, 26)
+	row.Size = UDim2.new(1, 0, 0, height)
 	row.BackgroundTransparency = 1
 	row.Parent = parent
 
 	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(0.52, 0, 1, 0)
+	title.Size = UDim2.new(1, -(reservedWidth + 10), 1, 0)
 	title.BackgroundTransparency = 1
 	title.Text = titleText
 	title.TextColor3 = theme.Text
 	title.TextSize = 11
 	title.Font = Enum.Font.Gotham
 	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextTruncate = Enum.TextTruncate.AtEnd
 	title:SetAttribute("HyperVRole", "FieldLabel")
 	title.Parent = row
 
-	return row
+	local controlHost = Instance.new("Frame")
+	controlHost.Name = "ControlHost"
+	controlHost.Size = UDim2.new(0, reservedWidth, 1, 0)
+	controlHost.Position = UDim2.new(1, -reservedWidth, 0, 0)
+	controlHost.BackgroundTransparency = 1
+	controlHost.Parent = row
+
+	local function updateLayout()
+		local adaptiveWidth = math.min(reservedWidth, math.max(44, row.AbsoluteSize.X - 78))
+		controlHost.Size = UDim2.new(0, adaptiveWidth, 1, 0)
+		controlHost.Position = UDim2.new(1, -adaptiveWidth, 0, 0)
+		title.Size = UDim2.new(1, -(adaptiveWidth + 10), 1, 0)
+	end
+
+	row:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateLayout)
+	updateLayout()
+
+	return row, controlHost
 end
 
 local function createToggle(parent: Instance, toolkit, theme, titleText: string, onChanged: (boolean) -> ())
-	local row = createRow(parent, theme, titleText)
+	local row, controlHost = createRow(parent, theme, titleText, 42)
 	local button = Instance.new("TextButton")
 	button.Size = UDim2.new(0, 42, 0, 22)
-	button.Position = UDim2.new(1, -42, 0.5, -11)
+	button.AnchorPoint = Vector2.new(1, 0.5)
+	button.Position = UDim2.new(1, 0, 0.5, 0)
 	button.BackgroundTransparency = 1
 	button.BorderSizePixel = 0
 	button.Text = ""
-	button.Parent = row
+	button.Parent = controlHost
 
 	local track = Instance.new("Frame")
 	track.Size = UDim2.new(1, 0, 1, 0)
@@ -141,10 +162,11 @@ local function createTextInput(
 	width: number,
 	onChanged: (string) -> ()
 )
-	local row = createRow(parent, theme, titleText)
+	local row, controlHost = createRow(parent, theme, titleText, width)
 	local input = Instance.new("TextBox")
 	input.Size = UDim2.new(0, width, 0, 22)
-	input.Position = UDim2.new(1, -width, 0.5, -11)
+	input.AnchorPoint = Vector2.new(1, 0.5)
+	input.Position = UDim2.new(1, 0, 0.5, 0)
 	input.BackgroundColor3 = theme.Second
 	input.BorderSizePixel = 0
 	input.TextColor3 = theme.Text
@@ -152,7 +174,7 @@ local function createTextInput(
 	input.Font = Enum.Font.Gotham
 	input.ClearTextOnFocus = false
 	input:SetAttribute("HyperVRole", "FieldInput")
-	input.Parent = row
+	input.Parent = controlHost
 	toolkit:CreateCorner(input, 6)
 	toolkit:CreateStroke(input, theme.Border)
 
@@ -179,12 +201,13 @@ local function createNumberInput(parent: Instance, toolkit, theme, titleText: st
 end
 
 local function createColorInput(parent: Instance, toolkit, theme, titleText: string, onChanged: (Color3) -> ())
-	local row = createRow(parent, theme, titleText)
+	local row, controlHost = createRow(parent, theme, titleText, 138)
 	local host = Instance.new("Frame")
 	host.Size = UDim2.new(0, 138, 0, 22)
-	host.Position = UDim2.new(1, -138, 0.5, -11)
+	host.AnchorPoint = Vector2.new(1, 0.5)
+	host.Position = UDim2.new(1, 0, 0.5, 0)
 	host.BackgroundTransparency = 1
-	host.Parent = row
+	host.Parent = controlHost
 
 	local layout = Instance.new("UIListLayout")
 	layout.FillDirection = Enum.FillDirection.Horizontal
