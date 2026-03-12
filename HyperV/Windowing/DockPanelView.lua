@@ -1,6 +1,9 @@
 --!strict
 
-local LegacyDockPanel = require(script.Parent.Parent.Parent["Hyper V"].Feature.DockPanel)
+local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
+
+local legacyRoot = resolveLegacyRoot(script)
+local LegacyDockPanel = require(legacyRoot.Feature.DockPanel)
 
 local DockPanelView = {}
 DockPanelView.__index = DockPanelView

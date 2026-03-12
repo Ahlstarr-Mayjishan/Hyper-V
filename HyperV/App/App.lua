@@ -17,10 +17,12 @@ local WindowController = require(script.Parent.Parent.Windowing.WindowController
 local CharacterPreviewController = require(script.Parent.Parent.Preview.CharacterPreviewController)
 local LegacyRendererFactory = require(script.Parent.Parent.Elements.LegacyRendererFactory)
 local PresetManager = require(script.Parent.Parent.Elements.PresetManager)
+local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
 
 -- Core systems
-local GarbageCollector = require(script.Parent.Parent["Hyper V"].core.GarbageCollector.GarbageCollector)
-local HyperVAPI = require(script.Parent.Parent["Hyper V"].core.API.RayfieldAPI)
+local legacyRoot = resolveLegacyRoot(script)
+local GarbageCollector = require(legacyRoot.core.GarbageCollector.GarbageCollector)
+local HyperVAPI = require(legacyRoot.core.API.RayfieldAPI)
 
 local App = {}
 App.__index = App
@@ -84,7 +86,7 @@ function App.new(config)
 	self.dockRegistry = DockRegistry.new()
 	self.text = Utf8Text
 	self.overlayHost = OverlayHost.new(self.screenGui, self.theme, self.toolkit)
-	self.legacyRoot = script.Parent.Parent.Parent["Hyper V"]
+	self.legacyRoot = legacyRoot
 	self.legacyRendererFactory = LegacyRendererFactory.new(self.legacyRoot, self.theme, self.toolkit, self.presetRegistry)
 
 	-- Initialize Core Systems

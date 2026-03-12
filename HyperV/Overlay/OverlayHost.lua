@@ -1,6 +1,9 @@
 --!strict
 
-local Notification = require(script.Parent.Parent.Parent["Hyper V"].elements.Basics.Notification)
+local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
+
+local legacyRoot = resolveLegacyRoot(script)
+local Notification = require(legacyRoot.elements.Basics.Notification)
 
 local OverlayHost = {}
 OverlayHost.__index = OverlayHost

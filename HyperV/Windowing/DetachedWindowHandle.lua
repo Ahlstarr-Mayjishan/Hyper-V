@@ -1,6 +1,9 @@
 --!strict
 
-local LegacyDetachedWindow = require(script.Parent.Parent.Parent["Hyper V"].Feature.DetachedWindow)
+local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
+
+local legacyRoot = resolveLegacyRoot(script)
+local LegacyDetachedWindow = require(legacyRoot.Feature.DetachedWindow)
 
 local DetachedWindowHandle = {}
 DetachedWindowHandle.__index = DetachedWindowHandle

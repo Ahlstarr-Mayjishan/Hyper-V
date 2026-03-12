@@ -1,9 +1,12 @@
 --!strict
 
 local App = require(script.App.App)
-local HyperVAPI = require(script.Parent["Hyper V"].core.API.RayfieldAPI)
-local GarbageCollector = require(script.Parent["Hyper V"].core.GarbageCollector.GarbageCollector)
-local AnimationEngine = require(script.Parent["Hyper V"].core.Animation.AnimationEngine)
+local resolveLegacyRoot = require(script.Legacy.LegacyRoot)
+
+local legacyRoot = resolveLegacyRoot(script)
+local HyperVAPI = require(legacyRoot.core.API.RayfieldAPI)
+local GarbageCollector = require(legacyRoot.core.GarbageCollector.GarbageCollector)
+local AnimationEngine = require(legacyRoot.core.Animation.AnimationEngine)
 
 local HyperV = {}
 
