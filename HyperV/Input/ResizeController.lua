@@ -6,6 +6,10 @@ local legacyRoot = resolveLegacyRoot(script)
 local DragLock = require(legacyRoot.core.DragLock)
 
 export type ResizeCallbacks = {
+	authority: any?,
+	claimantId: string?,
+	interactionPriority: number?,
+	domain: string?,
 	minSize: Vector2?,
 	maxSize: Vector2?,
 	canResize: (() -> boolean)?,
@@ -30,7 +34,14 @@ end
 
 function ResizeController.attach(frame: GuiObject, handles: ResizeHandles, callbacks: ResizeCallbacks?): () -> ()
 	local options = callbacks or {}
-	local ownerId = createOwnerId(frame)
+	local authority = options.authority
+	local ownerId = options.claimantId
+		or (if type(frame:GetAttribute("HyperVSurfaceId")) == "string" then frame:GetAttribute("HyperVSurfaceId") else nil)
+		or createOwnerId(frame)
+	local priority = options.interactionPriority
+		or (if type(frame:GetAttribute("HyperVSurfacePriority")) == "number" then frame:GetAttribute("HyperVSurfacePriority") else nil)
+		or 0
+	local domain = options.domain or "resize"
 	local activeHandle: string? = nil
 	local dragInput: InputObject? = nil
 	local dragStart: Vector3? = nil
@@ -47,8 +58,17 @@ function ResizeController.attach(frame: GuiObject, handles: ResizeHandles, callb
 			return
 		end
 
-		if not DragLock.TryAcquire(ownerId, input) then
-			return
+		if authority then
+			if not authority:tryAcquire(domain, {
+				id = ownerId,
+				priority = priority,
+			}) then
+				return
+			end
+		else
+			if not DragLock.TryAcquire(ownerId, input) then
+				return
+			end
 		end
 
 		activeHandle = handleName
@@ -96,12 +116,22 @@ function ResizeController.attach(frame: GuiObject, handles: ResizeHandles, callb
 			return
 		end
 
-		if not DragLock.IsOwner(ownerId) then
-			activeHandle = nil
-			dragInput = nil
-			dragStart = nil
-			startSize = nil
-			return
+		if authority then
+			if not authority:isOwner(domain, ownerId) then
+				activeHandle = nil
+				dragInput = nil
+				dragStart = nil
+				startSize = nil
+				return
+			end
+		else
+			if not DragLock.IsOwner(ownerId) then
+				activeHandle = nil
+				dragInput = nil
+				dragStart = nil
+				startSize = nil
+				return
+			end
 		end
 
 		local delta = input.Position - dragStart
@@ -137,7 +167,11 @@ function ResizeController.attach(frame: GuiObject, handles: ResizeHandles, callb
 			dragInput = nil
 			dragStart = nil
 			startSize = nil
-			DragLock.Release(ownerId)
+			if authority then
+				authority:release(domain, ownerId)
+			else
+				DragLock.Release(ownerId)
+			end
 
 			if options.onResizeEnd then
 				options.onResizeEnd(input, endSize)
@@ -146,7 +180,11 @@ function ResizeController.attach(frame: GuiObject, handles: ResizeHandles, callb
 	end))
 
 	return function()
-		DragLock.Release(ownerId)
+		if authority then
+			authority:release(domain, ownerId)
+		else
+			DragLock.Release(ownerId)
+		end
 		for _, connection in ipairs(connections) do
 			connection:Disconnect()
 		end

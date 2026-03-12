@@ -5,6 +5,7 @@ local UserInputService = game:GetService("UserInputService")
 local DisposableStore = require(script.Parent.Parent.Parent.Core.DisposableStore)
 local CommandPaletteState = require(script.Parent.CommandPaletteState)
 local CommandPaletteView = require(script.Parent.CommandPaletteView)
+local LayerAuthority = require(script.Parent.Parent.Parent.System.LayerAuthority)
 
 local CommandPaletteController = {}
 CommandPaletteController.__index = CommandPaletteController
@@ -14,6 +15,9 @@ function CommandPaletteController.new(config, context)
 	self._disposables = DisposableStore.new()
 	self._context = context
 	self._hotkey = config.Hotkey
+	self.id = config.Id or "CommandPalette"
+	self.kind = "commandPalette"
+	self.autoActivate = false
 	self._state = CommandPaletteState.new(config.Actions or context.commandRegistry:list())
 	self._view = CommandPaletteView.new(config.Parent or context.app:getOverlayHost():getRoot(), context.theme, context.toolkit, {
 		onQueryChanged = function(query)
@@ -27,6 +31,7 @@ function CommandPaletteController.new(config, context)
 			self:close()
 		end,
 	})
+	self.view = self._view.overlay
 
 	self._disposables:add(UserInputService.InputBegan:Connect(function(inputObject, gameProcessed)
 		if gameProcessed then
@@ -87,7 +92,24 @@ function CommandPaletteController:activate(id)
 	self:close()
 end
 
+function CommandPaletteController:applyLayer(baseZIndex: number)
+	LayerAuthority.applyGuiTreeZIndex(self._view.overlay, baseZIndex)
+end
+
+function CommandPaletteController:activateSurface()
+	self._context.interactionAuthority:requestFocus({
+		id = self.id,
+		priority = 40,
+	})
+	self._context.layerAuthority:bringToFront(self.id)
+end
+
+function CommandPaletteController:activate()
+	self:activateSurface()
+end
+
 function CommandPaletteController:open(query)
+	self:activateSurface()
 	self._view:setVisible(true)
 	self._view:setQuery(query or "")
 	self._state:setQuery(query or "")
@@ -100,9 +122,15 @@ end
 function CommandPaletteController:close()
 	self._view:setVisible(false)
 	self._view.input:ReleaseFocus()
+	self._context.interactionAuthority:releaseFocus(self.id)
 end
 
 function CommandPaletteController:dispose()
+	if self._layerCleanup then
+		self._layerCleanup()
+		self._layerCleanup = nil
+	end
+	self._context.interactionAuthority:clearOwner(self.id)
 	self._disposables:cleanup()
 	self._view:dispose()
 end

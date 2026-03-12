@@ -87,11 +87,19 @@ function ElementToolkit:IsPointInBounds(point: Vector2, target: GuiObject | any)
 end
 
 function ElementToolkit:MakeDraggable(frame: GuiObject, dragArea: GuiObject, options)
-	return DragController.attach(frame, dragArea, options)
+	local nextOptions = if options then table.clone(options) else {}
+	if nextOptions.authority == nil then
+		nextOptions.authority = self._interactionAuthority
+	end
+	return DragController.attach(frame, dragArea, nextOptions)
 end
 
 function ElementToolkit:MakeResizable(frame: GuiObject, handles, options)
-	return ResizeController.attach(frame, handles, options)
+	local nextOptions = if options then table.clone(options) else {}
+	if nextOptions.authority == nil then
+		nextOptions.authority = self._interactionAuthority
+	end
+	return ResizeController.attach(frame, handles, nextOptions)
 end
 
 return ElementToolkit

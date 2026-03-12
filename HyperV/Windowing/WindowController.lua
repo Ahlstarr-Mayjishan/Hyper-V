@@ -2,6 +2,7 @@
 
 local SectionHandle = require(script.Parent.SectionHandle)
 local DragController = require(script.Parent.Parent.Input.DragController)
+local LayerAuthority = require(script.Parent.Parent.System.LayerAuthority)
 
 local WindowController = {}
 WindowController.__index = WindowController
@@ -18,6 +19,7 @@ function WindowController.new(app, config)
 	self.activeTab = nil
 	self._minSize = config.MinSize or Vector2.new(720, 460)
 	self._maxSize = config.MaxSize or Vector2.new(1600, 1100)
+	self._surfacePriority = 10
 
 	local size = if typeof(config.Size) == "Vector2"
 		then UDim2.new(0, config.Size.X, 0, config.Size.Y)
@@ -121,18 +123,43 @@ function WindowController.new(app, config)
 	self._closeButton = closeButton
 	self._resizeCorner = resizeCorner
 	self.parentFrame = app.screenGui
-	self._dragCleanup = DragController.attach(root, titleBar, {})
+	self._dragCleanup = DragController.attach(root, titleBar, {
+		authority = app:getInteractionAuthority(),
+		claimantId = self.id,
+		interactionPriority = self._surfacePriority,
+		onDragStart = function()
+			self:activate()
+		end,
+	})
 	self._resizeCleanup = app.toolkit:MakeResizable(root, {
 		corner = resizeCorner,
 		right = resizeRight,
 		bottom = resizeBottom,
 	}, {
+		authority = app:getInteractionAuthority(),
+		claimantId = self.id,
+		interactionPriority = self._surfacePriority,
 		minSize = self._minSize,
 		maxSize = self._maxSize,
+		onResizeStart = function()
+			self:activate()
+		end,
 		onResize = function(_, nextSize)
 			self:_setBaseSize(nextSize)
 		end,
 	})
+
+	root.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			self:activate()
+		end
+	end)
+
+	titleBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			self:activate()
+		end
+	end)
 
 	closeButton.MouseButton1Click:Connect(function()
 		self:dispose()
@@ -144,6 +171,18 @@ end
 function WindowController:_setBaseSize(nextSize: Vector2)
 	self._baseSize = nextSize
 	self.root.Size = UDim2.new(0, nextSize.X, 0, nextSize.Y)
+end
+
+function WindowController:applyLayer(baseZIndex: number)
+	LayerAuthority.applyGuiTreeZIndex(self.root, baseZIndex)
+end
+
+function WindowController:activate()
+	self.app:getInteractionAuthority():requestFocus({
+		id = self.id,
+		priority = self._surfacePriority,
+	})
+	self.app:getLayerAuthority():bringToFront(self.id)
 end
 
 function WindowController:applyTheme(theme, layout)
@@ -277,6 +316,11 @@ function WindowController:dispose()
 		self._resizeCleanup()
 		self._resizeCleanup = nil
 	end
+	if self._layerCleanup then
+		self._layerCleanup()
+		self._layerCleanup = nil
+	end
+	self.app:getInteractionAuthority():clearOwner(self.id)
 	self.root:Destroy()
 end
 

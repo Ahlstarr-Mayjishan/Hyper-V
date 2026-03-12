@@ -1,6 +1,7 @@
 --!strict
 
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
+local LayerAuthority = require(script.Parent.Parent.System.LayerAuthority)
 
 local legacyRoot = resolveLegacyRoot(script)
 local LegacyDetachedWindow = require(legacyRoot.Feature.DetachedWindow)
@@ -81,12 +82,32 @@ function DetachedWindowHandle.new(config, context)
 		right = self._resizeRight,
 		bottom = self._resizeBottom,
 	}, {
+		authority = context.interactionAuthority,
+		claimantId = self.id,
+		interactionPriority = 20,
 		minSize = self._minSize,
 		maxSize = self._maxSize,
+		onResizeStart = function()
+			self:activate()
+		end,
 		onResize = function(_, nextSize)
 			self:_setBaseSize(nextSize)
 		end,
 	})
+
+	if self._legacy.TitleBar then
+		self._legacy.TitleBar.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				self:activate()
+			end
+		end)
+	end
+
+	self.view.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			self:activate()
+		end
+	end)
 	return self
 end
 
@@ -151,6 +172,18 @@ function DetachedWindowHandle:applyTheme(theme)
 	end
 end
 
+function DetachedWindowHandle:applyLayer(baseZIndex: number)
+	LayerAuthority.applyGuiTreeZIndex(self.view, baseZIndex)
+end
+
+function DetachedWindowHandle:activate()
+	self._context.interactionAuthority:requestFocus({
+		id = self.id,
+		priority = 20,
+	})
+	self._context.layerAuthority:bringToFront(self.id)
+end
+
 function DetachedWindowHandle:applyWhitespace(scale)
 	local spacingScale = scale or 1
 	local buttonSize = math.floor(32 * spacingScale + 0.5)
@@ -170,14 +203,13 @@ function DetachedWindowHandle:applyWhitespace(scale)
 end
 
 function DetachedWindowHandle:open()
-	if self._legacy and self._legacy.BringToFront then
-		self._legacy:BringToFront()
-	end
+	self:activate()
 	self.view.Visible = true
 end
 
 function DetachedWindowHandle:close()
 	self.view.Visible = false
+	self._context.interactionAuthority:releaseFocus(self.id)
 end
 
 function DetachedWindowHandle:dispose()
@@ -189,6 +221,11 @@ function DetachedWindowHandle:dispose()
 		self._resizeCleanup()
 		self._resizeCleanup = nil
 	end
+	if self._layerCleanup then
+		self._layerCleanup()
+		self._layerCleanup = nil
+	end
+	self._context.interactionAuthority:clearOwner(self.id)
 	self._legacy:Destroy()
 end
 

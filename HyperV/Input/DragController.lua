@@ -6,6 +6,10 @@ local legacyRoot = resolveLegacyRoot(script)
 local DragLock = require(legacyRoot.core.DragLock)
 
 export type DragCallbacks = {
+	authority: any?,
+	claimantId: string?,
+	interactionPriority: number?,
+	domain: string?,
 	canDrag: (() -> boolean)?,
 	onDragStart: ((input: InputObject, startPosition: UDim2) -> ())?,
 	onDragMove: ((input: InputObject, newPosition: UDim2, delta: Vector3) -> ())?,
@@ -22,7 +26,14 @@ end
 
 function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks: DragCallbacks?): () -> ()
 	local options = callbacks or {}
-	local ownerId = createOwnerId(frame)
+	local authority = options.authority
+	local ownerId = options.claimantId
+		or (if type(frame:GetAttribute("HyperVSurfaceId")) == "string" then frame:GetAttribute("HyperVSurfaceId") else nil)
+		or createOwnerId(frame)
+	local priority = options.interactionPriority
+		or (if type(frame:GetAttribute("HyperVSurfacePriority")) == "number" then frame:GetAttribute("HyperVSurfacePriority") else nil)
+		or 0
+	local domain = options.domain or "drag"
 	local dragging = false
 	local dragInput: InputObject? = nil
 	local dragStart: Vector3? = nil
@@ -38,8 +49,17 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 			input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch
 		then
-			if not DragLock.TryAcquire(ownerId, input) then
-				return
+			if authority then
+				if not authority:tryAcquire(domain, {
+					id = ownerId,
+					priority = priority,
+				}) then
+					return
+				end
+			else
+				if not DragLock.TryAcquire(ownerId, input) then
+					return
+				end
 			end
 
 			dragging = true
@@ -71,11 +91,20 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 			return
 		end
 
-		if not DragLock.IsOwner(ownerId) then
-			dragging = false
-			dragInput = nil
-			activePointerType = nil
-			return
+		if authority then
+			if not authority:isOwner(domain, ownerId) then
+				dragging = false
+				dragInput = nil
+				activePointerType = nil
+				return
+			end
+		else
+			if not DragLock.IsOwner(ownerId) then
+				dragging = false
+				dragInput = nil
+				activePointerType = nil
+				return
+			end
 		end
 
 		if dragInput and input ~= dragInput then
@@ -112,7 +141,11 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 			dragging = false
 			dragInput = nil
 			activePointerType = nil
-			DragLock.Release(ownerId)
+			if authority then
+				authority:release(domain, ownerId)
+			else
+				DragLock.Release(ownerId)
+			end
 
 			if options.onDragEnd then
 				options.onDragEnd(input, frame.Position)
@@ -121,7 +154,11 @@ function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks:
 	end)
 
 	return function()
-		DragLock.Release(ownerId)
+		if authority then
+			authority:release(domain, ownerId)
+		else
+			DragLock.Release(ownerId)
+		end
 		began:Disconnect()
 		changed:Disconnect()
 		inputChanged:Disconnect()

@@ -18,6 +18,8 @@ local CharacterPreviewController = require(script.Parent.Parent.Preview.Characte
 local LegacyRendererFactory = require(script.Parent.Parent.Elements.LegacyRendererFactory)
 local PresetManager = require(script.Parent.Parent.Elements.PresetManager)
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
+local InteractionAuthority = require(script.Parent.Parent.System.InteractionAuthority)
+local LayerAuthority = require(script.Parent.Parent.System.LayerAuthority)
 
 -- Core systems
 local legacyRoot = resolveLegacyRoot(script)
@@ -30,6 +32,11 @@ App.__index = App
 local DEFAULT_WINDOW_MARGIN = 24
 local MIN_WINDOW_SIZE = Vector2.new(360, 260)
 local getViewportSize
+local SURFACE_PRIORITY = {
+	window = 10,
+	detached = 20,
+	palette = 40,
+}
 
 local function computeWhitespaceScale(): number
 	local viewport = getViewportSize()
@@ -211,6 +218,9 @@ function App.new(config)
 	self.layout = LayoutSpecs.get(config.Layout)
 	self.toolkit = ElementToolkit.new()
 	self.screenGui = createScreenGui(config.Name or "HyperV")
+	self.interactionAuthority = InteractionAuthority.new()
+	self.layerAuthority = LayerAuthority.new()
+	self.toolkit._interactionAuthority = self.interactionAuthority
 	self.presetRegistry = PresetRegistry.new()
 	self.commandRegistry = CommandRegistry.new()
 	self.dockRegistry = DockRegistry.new()
@@ -233,6 +243,8 @@ function App.new(config)
 		presetRegistry = self.presetRegistry,
 		commandRegistry = self.commandRegistry,
 		dockRegistry = self.dockRegistry,
+		interactionAuthority = self.interactionAuthority,
+		layerAuthority = self.layerAuthority,
 		gc = self.gc,
 		api = self.api,
 		animation = nil :: any,
@@ -286,6 +298,41 @@ function App:_registerStylable(stylable)
 	return stylable
 end
 
+function App:_registerSurface(surface, priority: number)
+	if not surface or not surface.view or not surface.id then
+		return surface
+	end
+
+	if surface.view:IsA("GuiObject") then
+		surface.view:SetAttribute("HyperVSurfaceId", surface.id)
+		surface.view:SetAttribute("HyperVSurfacePriority", priority)
+	end
+
+	if surface._layerCleanup then
+		surface._layerCleanup()
+	end
+
+	surface._layerCleanup = self.layerAuthority:registerSurface(surface.id, priority, function(baseZIndex)
+		if surface.applyLayer then
+			surface:applyLayer(baseZIndex)
+		else
+			LayerAuthority.applyGuiTreeZIndex(surface.view, baseZIndex)
+		end
+	end)
+
+	if surface.autoActivate ~= false and surface.activate then
+		surface:activate()
+	elseif surface.autoActivate ~= false then
+		self.interactionAuthority:requestFocus({
+			id = surface.id,
+			priority = priority,
+		})
+		self.layerAuthority:bringToFront(surface.id)
+	end
+
+	return surface
+end
+
 function App:getTheme()
 	return self.theme
 end
@@ -308,6 +355,14 @@ end
 
 function App:getOverlayHost()
 	return self.overlayHost
+end
+
+function App:getInteractionAuthority()
+	return self.interactionAuthority
+end
+
+function App:getLayerAuthority()
+	return self.layerAuthority
 end
 
 function App:getPresetRegistry()
@@ -347,6 +402,7 @@ function App:createWindow(config)
 	local window = WindowController.new(self, nextConfig)
 	window._responsiveCleanup = attachResponsiveWindow(window, baseSize, nextConfig.Margin)
 	self:_registerStylable(window)
+	self:_registerSurface(window, SURFACE_PRIORITY.window)
 	table.insert(self.windows, window)
 	self.currentWindow = window
 	return window
@@ -459,6 +515,7 @@ function App:createDetachedWindow(config)
 	}, self._context)
 
 	handle._responsiveCleanup = attachResponsiveWindow(handle, baseSize, config.Margin)
+	self:_registerSurface(handle, SURFACE_PRIORITY.detached)
 	return self:_registerStylable(handle)
 end
 
@@ -472,11 +529,13 @@ function App:createCommandPalette(config)
 			callback = action.Callback or action.callback,
 		})
 	end
-	return CommandPaletteController.new({
+	local palette = CommandPaletteController.new({
 		Hotkey = config.Hotkey,
 		Actions = actions,
 		Parent = config.Parent or self.screenGui,
 	}, self._context)
+	self:_registerSurface(palette, SURFACE_PRIORITY.palette)
+	return palette
 end
 
 function App:createNumberInput(config)
@@ -527,6 +586,8 @@ function App:createCharacterPreview(config)
 		presetRegistry = self.presetRegistry,
 		commandRegistry = self.commandRegistry,
 		dockRegistry = self.dockRegistry,
+		interactionAuthority = self.interactionAuthority,
+		layerAuthority = self.layerAuthority,
 		gc = self.gc,
 		api = self.api,
 		animation = nil :: any,
