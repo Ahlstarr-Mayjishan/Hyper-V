@@ -14,14 +14,6 @@ local function getAdornmentTarget(model: Model): BasePart?
 	return model:FindFirstChild("HumanoidRootPart") :: BasePart? or model.PrimaryPart
 end
 
-local function ensureBaselinePartTables(cache)
-	cache.baselinePartTransparency = cache.baselinePartTransparency
-		or setmetatable({}, { __mode = "k" })
-	cache.baselinePartColor = cache.baselinePartColor or setmetatable({}, { __mode = "k" })
-	cache.baselineDecalTransparency = cache.baselineDecalTransparency
-		or setmetatable({}, { __mode = "k" })
-end
-
 function Effects.clear(cache)
 	for key, value in pairs(cache) do
 		if typeof(value) == "Instance" then
@@ -116,173 +108,6 @@ function Effects.ensurePreviewStage(worldModel: WorldModel, cache)
 
 	cache.stage = stage
 	return stage
-end
-
-function Effects.captureBaseline(model: Model, cache)
-	ensureBaselinePartTables(cache)
-
-	forEachBasePart(model, function(part)
-		cache.baselinePartTransparency[part] = part.Transparency
-		cache.baselinePartColor[part] = part.Color
-	end)
-
-	for _, descendant in ipairs(model:GetDescendants()) do
-		if descendant:IsA("Decal") or descendant:IsA("Texture") then
-			cache.baselineDecalTransparency[descendant] = descendant.Transparency
-		end
-	end
-end
-
-function Effects.restoreBaseVisualState(model: Model, cache)
-	ensureBaselinePartTables(cache)
-	if next(cache.baselinePartTransparency) == nil then
-		Effects.captureBaseline(model, cache)
-	end
-
-	local baselinePartTransparency = cache.baselinePartTransparency
-	if baselinePartTransparency then
-		for instance, originalTransparency in pairs(baselinePartTransparency) do
-			if typeof(instance) == "Instance" and instance.Parent and instance:IsA("BasePart") then
-				instance.LocalTransparencyModifier = 0
-				instance.Transparency = originalTransparency
-			end
-		end
-	end
-
-	local baselinePartColor = cache.baselinePartColor
-	if baselinePartColor then
-		for instance, originalColor in pairs(baselinePartColor) do
-			if typeof(instance) == "Instance" and instance.Parent and instance:IsA("BasePart") then
-				instance.Color = originalColor
-			end
-		end
-	end
-
-	local baselineDecalTransparency = cache.baselineDecalTransparency
-	if baselineDecalTransparency then
-		for instance, originalTransparency in pairs(baselineDecalTransparency) do
-			if typeof(instance) == "Instance" and instance.Parent and (instance:IsA("Decal") or instance:IsA("Texture")) then
-				instance.Transparency = originalTransparency
-			end
-		end
-	end
-
-	if cache.highlight then
-		cache.highlight.Enabled = false
-	end
-end
-
-function Effects.applyTransparency(model: Model, value: number, cache)
-	ensureBaselinePartTables(cache)
-	if next(cache.baselinePartTransparency) == nil then
-		Effects.captureBaseline(model, cache)
-	end
-
-	local transparencyValue = math.clamp(value, 0, 1)
-	forEachBasePart(model, function(part)
-		local originalTransparency = cache.baselinePartTransparency[part]
-		if originalTransparency == nil then
-			originalTransparency = part.Transparency
-			cache.baselinePartTransparency[part] = originalTransparency
-		end
-		part.Transparency = originalTransparency
-		local appliedTransparency = transparencyValue
-		if transparencyValue < 0.999 then
-			if part:GetAttribute("HyperVPreviewHead") == true then
-				appliedTransparency *= 0.22
-			elseif part.Name == "Head" then
-				appliedTransparency *= 0.9
-			end
-
-			if part:FindFirstAncestorOfClass("Accessory") then
-				appliedTransparency *= 0.82
-			end
-		else
-			appliedTransparency = 1
-		end
-
-		part.LocalTransparencyModifier = appliedTransparency
-	end)
-
-	for _, descendant in ipairs(model:GetDescendants()) do
-		if descendant:IsA("Decal") or descendant:IsA("Texture") then
-			local originalTransparency = cache.baselineDecalTransparency[descendant]
-			if originalTransparency == nil then
-				originalTransparency = descendant.Transparency
-				cache.baselineDecalTransparency[descendant] = originalTransparency
-			end
-			local appliedTransparency = transparencyValue
-			if transparencyValue < 0.999 then
-				if descendant:GetAttribute("HyperVPreviewFace") == true then
-					appliedTransparency *= 0.12
-				elseif descendant.Name == "face" or descendant.Name == "Face" then
-					appliedTransparency *= 0.72
-				end
-			else
-				appliedTransparency = 1
-			end
-
-			descendant.Transparency = originalTransparency + ((1 - originalTransparency) * appliedTransparency)
-		end
-	end
-end
-
-function Effects.applyCharms(model: Model, config, cache, baseTransparency: number)
-	ensureBaselinePartTables(cache)
-	if next(cache.baselinePartTransparency) == nil then
-		Effects.captureBaseline(model, cache)
-	end
-	local transparencyValue = math.clamp(baseTransparency or 0, 0, 1)
-
-	for _, accessory in ipairs(model:GetChildren()) do
-		if accessory:IsA("Accessory") then
-			for _, descendant in ipairs(accessory:GetDescendants()) do
-				if descendant:IsA("BasePart") then
-					local originalColor = cache.baselinePartColor[descendant]
-					if originalColor == nil then
-						originalColor = descendant.Color
-						cache.baselinePartColor[descendant] = originalColor
-					end
-					local originalTransparency = cache.baselinePartTransparency[descendant]
-					if originalTransparency == nil then
-						originalTransparency = descendant.Transparency
-						cache.baselinePartTransparency[descendant] = originalTransparency
-					end
-					descendant.Transparency = originalTransparency
-					if config.visible then
-						descendant.LocalTransparencyModifier = if transparencyValue >= 0.999 then 1 else transparencyValue * 0.82
-					else
-						descendant.LocalTransparencyModifier = 1
-					end
-					if config.tintEnabled then
-						descendant.Color = config.tintColor
-					else
-						descendant.Color = originalColor
-					end
-				end
-			end
-		end
-	end
-end
-
-function Effects.applyHighlight(model: Model, config, cache)
-	if config.enabled then
-		local highlight = cache.highlight
-		if not highlight then
-			highlight = Instance.new("Highlight")
-			highlight.Adornee = model
-			highlight.Parent = model
-			cache.highlight = highlight
-		end
-		highlight.Enabled = true
-		highlight.FillColor = config.fillColor
-		highlight.OutlineColor = config.outlineColor
-		highlight.FillTransparency = config.fillTransparency
-		highlight.OutlineTransparency = config.outlineTransparency
-		highlight.DepthMode = config.depthMode
-	elseif cache.highlight then
-		cache.highlight.Enabled = false
-	end
 end
 
 function Effects.applyTrail(model: Model, config, cache)
@@ -457,9 +282,27 @@ function Effects.applyEspBox(overlayFrame: Frame, boxFrame: Frame, projectedBoun
 		bottomRightVertical,
 	}
 
+	local glowSegments = {
+		getCornerSegment(boxFrame, "GlowTopLeftHorizontal"),
+		getCornerSegment(boxFrame, "GlowTopLeftVertical"),
+		getCornerSegment(boxFrame, "GlowTopRightHorizontal"),
+		getCornerSegment(boxFrame, "GlowTopRightVertical"),
+		getCornerSegment(boxFrame, "GlowBottomLeftHorizontal"),
+		getCornerSegment(boxFrame, "GlowBottomLeftVertical"),
+		getCornerSegment(boxFrame, "GlowBottomRightHorizontal"),
+		getCornerSegment(boxFrame, "GlowBottomRightVertical"),
+	}
+
 	for _, segment in ipairs(segments) do
 		segment.BackgroundColor3 = color
+		segment.BackgroundTransparency = 0
 		segment.ZIndex = boxFrame.ZIndex
+	end
+
+	for _, segment in ipairs(glowSegments) do
+		segment.BackgroundColor3 = color
+		segment.BackgroundTransparency = 0.58
+		segment.ZIndex = boxFrame.ZIndex - 1
 	end
 
 	topLeftHorizontal.Position = UDim2.new(0, 0, 0, 0)
@@ -481,6 +324,24 @@ function Effects.applyEspBox(overlayFrame: Frame, boxFrame: Frame, projectedBoun
 	bottomRightHorizontal.Size = UDim2.new(0, cornerLength, 0, thickness)
 	bottomRightVertical.Position = UDim2.new(1, -thickness, 1, -cornerLength)
 	bottomRightVertical.Size = UDim2.new(0, thickness, 0, cornerLength)
+
+	local glowThickness = thickness + 2
+	glowSegments[1].Position = topLeftHorizontal.Position
+	glowSegments[1].Size = UDim2.new(0, cornerLength, 0, glowThickness)
+	glowSegments[2].Position = topLeftVertical.Position
+	glowSegments[2].Size = UDim2.new(0, glowThickness, 0, cornerLength)
+	glowSegments[3].Position = topRightHorizontal.Position
+	glowSegments[3].Size = UDim2.new(0, cornerLength, 0, glowThickness)
+	glowSegments[4].Position = topRightVertical.Position
+	glowSegments[4].Size = UDim2.new(0, glowThickness, 0, cornerLength)
+	glowSegments[5].Position = bottomLeftHorizontal.Position
+	glowSegments[5].Size = UDim2.new(0, cornerLength, 0, glowThickness)
+	glowSegments[6].Position = bottomLeftVertical.Position
+	glowSegments[6].Size = UDim2.new(0, glowThickness, 0, cornerLength)
+	glowSegments[7].Position = bottomRightHorizontal.Position
+	glowSegments[7].Size = UDim2.new(0, cornerLength, 0, glowThickness)
+	glowSegments[8].Position = bottomRightVertical.Position
+	glowSegments[8].Size = UDim2.new(0, glowThickness, 0, cornerLength)
 end
 
 function Effects.applyEspInfo(infoCard: Frame, infoLabel: TextLabel, projectedBounds, config, characterName: string, distance: number, healthText: string)

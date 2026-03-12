@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 
 local DisposableStore = require(script.Parent.Parent.Core.DisposableStore)
 local Effects = require(script.Parent.CharacterPreviewEffects)
+local Renderer = require(script.Parent.CharacterPreviewRenderer)
 local Serializer = require(script.Parent.CharacterPreviewSerializer)
 local CharacterPreviewState = require(script.Parent.CharacterPreviewState)
 local CharacterPreviewView = require(script.Parent.CharacterPreviewView)
@@ -416,7 +417,7 @@ function CharacterPreviewController:_rebuildPreviewCharacter()
 	Effects.ensurePreviewStage(self._view.worldModel, self._effectCache)
 	clone.Parent = self._view.worldModel
 	self.previewCharacter = clone
-	Effects.captureBaseline(clone, self._effectCache)
+	self._effectCache.baseline = Renderer.captureBaseline(clone)
 	self._view:setStatus(nil)
 	self._lastVisualConfig = nil
 end
@@ -513,10 +514,13 @@ function CharacterPreviewController:_applyVisuals(snapshot: CharacterPreviewConf
 	end
 
 	self._view:setStatus(nil)
-	Effects.restoreBaseVisualState(self.previewCharacter, self._effectCache)
-	Effects.applyTransparency(self.previewCharacter, snapshot.transparency, self._effectCache)
-	Effects.applyCharms(self.previewCharacter, snapshot.charms, self._effectCache, snapshot.transparency)
-	Effects.applyHighlight(self.previewCharacter, snapshot.highlight, self._effectCache)
+	local baseline = self._effectCache.baseline
+	if not baseline then
+		baseline = Renderer.captureBaseline(self.previewCharacter)
+		self._effectCache.baseline = baseline
+	end
+	Renderer.renderCore(self.previewCharacter, baseline, snapshot)
+	Renderer.applyHighlight(self.previewCharacter, self._effectCache, snapshot.highlight)
 	Effects.applyTrail(self.previewCharacter, snapshot.trail, self._effectCache)
 	Effects.applyParticles(self.previewCharacter, snapshot.particles, self._effectCache)
 	Effects.applyForceField(self.previewCharacter, snapshot.forceField, self._effectCache)
