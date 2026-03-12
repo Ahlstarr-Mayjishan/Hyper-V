@@ -215,6 +215,15 @@ local function createColorInput(parent: Instance, toolkit, theme, titleText: str
 	layout.Parent = host
 
 	local boxes = {}
+	local function updateBoxLayout()
+		local gap = layout.Padding.Offset
+		local width = math.max(host.AbsoluteSize.X, 42)
+		local boxWidth = math.max(26, math.floor((width - (gap * 2)) / 3))
+		for _, box in ipairs(boxes) do
+			box.Size = UDim2.new(0, boxWidth, 0, 22)
+		end
+	end
+
 	local function emit()
 		local r = math.clamp(tonumber(boxes[1].Text) or 255, 0, 255)
 		local g = math.clamp(tonumber(boxes[2].Text) or 255, 0, 255)
@@ -237,6 +246,9 @@ local function createColorInput(parent: Instance, toolkit, theme, titleText: str
 		boxes[#boxes + 1] = input
 		input.FocusLost:Connect(emit)
 	end
+
+	host:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateBoxLayout)
+	updateBoxLayout()
 
 	return {
 		setValue = function(_, value: Color3)
@@ -262,7 +274,7 @@ local function createSlider(
 	sectionRow.Parent = parent
 
 	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, 0, 0, 16)
+	title.Size = UDim2.new(1, -62, 0, 16)
 	title.BackgroundTransparency = 1
 	title.Text = titleText
 	title.TextColor3 = theme.Text
@@ -282,6 +294,16 @@ local function createSlider(
 	valueLabel.TextXAlignment = Enum.TextXAlignment.Right
 	valueLabel:SetAttribute("HyperVRole", "AccentValue")
 	valueLabel.Parent = sectionRow
+
+	local function updateSliderLayout()
+		local valueWidth = math.max(48, math.min(72, math.floor(sectionRow.AbsoluteSize.X * 0.28)))
+		valueLabel.Size = UDim2.new(0, valueWidth, 0, 16)
+		valueLabel.Position = UDim2.new(1, -valueWidth, 0, 0)
+		title.Size = UDim2.new(1, -(valueWidth + 8), 0, 16)
+	end
+
+	sectionRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateSliderLayout)
+	updateSliderLayout()
 
 	local bar = Instance.new("Frame")
 	bar.Size = UDim2.new(1, 0, 0, 8)
@@ -509,6 +531,13 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	actionLayout.Padding = UDim.new(0, 6)
 	actionLayout.Parent = actionsRow
 
+	local actionsPadding = Instance.new("UIPadding")
+	actionsPadding.PaddingTop = UDim.new(0, 6)
+	actionsPadding.PaddingBottom = UDim.new(0, 6)
+	actionsPadding.PaddingLeft = UDim.new(0, 6)
+	actionsPadding.PaddingRight = UDim.new(0, 6)
+	actionsPadding.Parent = actionsRow
+
 	local cancelButton = Instance.new("TextButton")
 	cancelButton.Size = UDim2.new(0, 70, 0, 32)
 	cancelButton.BackgroundColor3 = context.theme.Second
@@ -549,6 +578,7 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self._controlsLayout = controlsLayout
 	self._actionsRow = actionsRow
 	self._actionLayout = actionLayout
+	self._actionsPadding = actionsPadding
 	self._cancelButton = cancelButton
 	self._resetButton = resetButton
 	self._applyButton = applyButton
@@ -1050,9 +1080,16 @@ function CharacterPreviewView:applyWhitespace(scale)
 	self._actionsRow.Size = UDim2.new(0, panelWidth, 0, actionHeight)
 	self._actionsRow.Position = UDim2.new(1, -panelWidth, 1, -actionHeight)
 	self._actionLayout.Padding = UDim.new(0, buttonGap)
-	self._cancelButton.Size = UDim2.new(0, math.floor(70 * spacingScale + 0.5), 0, sideButtonHeight)
-	self._resetButton.Size = UDim2.new(0, math.floor(70 * spacingScale + 0.5), 0, sideButtonHeight)
-	self._applyButton.Size = UDim2.new(0, math.floor(78 * spacingScale + 0.5), 0, sideButtonHeight)
+	self._actionsPadding.PaddingTop = UDim.new(0, math.floor(6 * spacingScale + 0.5))
+	self._actionsPadding.PaddingBottom = UDim.new(0, math.floor(6 * spacingScale + 0.5))
+	self._actionsPadding.PaddingLeft = UDim.new(0, math.floor(6 * spacingScale + 0.5))
+	self._actionsPadding.PaddingRight = UDim.new(0, math.floor(6 * spacingScale + 0.5))
+	local availableButtonWidth = math.max(140, panelWidth - (self._actionsPadding.PaddingLeft.Offset + self._actionsPadding.PaddingRight.Offset))
+	local secondaryWidth = math.floor((availableButtonWidth - (buttonGap * 2)) * 0.28 + 0.5)
+	local primaryWidth = math.max(secondaryWidth + 8, availableButtonWidth - (secondaryWidth * 2) - (buttonGap * 2))
+	self._cancelButton.Size = UDim2.new(0, secondaryWidth, 0, sideButtonHeight)
+	self._resetButton.Size = UDim2.new(0, secondaryWidth, 0, sideButtonHeight)
+	self._applyButton.Size = UDim2.new(0, primaryWidth, 0, sideButtonHeight)
 
 	local infoInsetY = math.floor(7 * spacingScale + 0.5)
 	local infoInsetX = math.floor(8 * spacingScale + 0.5)
