@@ -1,0 +1,691 @@
+--!strict
+
+local CharacterPreviewView = {}
+CharacterPreviewView.__index = CharacterPreviewView
+
+local function createSection(parent: Instance, toolkit, theme, titleText: string)
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(1, -8, 0, 0)
+	frame.AutomaticSize = Enum.AutomaticSize.Y
+	frame.BackgroundColor3 = theme.Default
+	frame.BorderSizePixel = 0
+	frame:SetAttribute("HyperVRole", "SectionSurface")
+	frame.Parent = parent
+	toolkit:CreateCorner(frame, 8)
+	toolkit:CreateStroke(frame, theme.Border)
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -12, 0, 18)
+	title.Position = UDim2.new(0, 8, 0, 6)
+	title.BackgroundTransparency = 1
+	title.Text = titleText
+	title.TextColor3 = theme.TitleText
+	title.TextSize = 12
+	title.Font = Enum.Font.GothamBold
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title:SetAttribute("HyperVRole", "SectionTitle")
+	title.Parent = frame
+
+	local body = Instance.new("Frame")
+	body.Size = UDim2.new(1, -12, 0, 0)
+	body.AutomaticSize = Enum.AutomaticSize.Y
+	body.Position = UDim2.new(0, 6, 0, 28)
+	body.BackgroundTransparency = 1
+	body.Parent = frame
+
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 6)
+	layout.Parent = body
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.Parent = body
+
+	return body
+end
+
+local function createRow(parent: Instance, theme, titleText: string)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, 0, 0, 26)
+	row.BackgroundTransparency = 1
+	row.Parent = parent
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(0.52, 0, 1, 0)
+	title.BackgroundTransparency = 1
+	title.Text = titleText
+	title.TextColor3 = theme.Text
+	title.TextSize = 11
+	title.Font = Enum.Font.Gotham
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title:SetAttribute("HyperVRole", "FieldLabel")
+	title.Parent = row
+
+	return row
+end
+
+local function createToggle(parent: Instance, toolkit, theme, titleText: string, onChanged: (boolean) -> ())
+	local row = createRow(parent, theme, titleText)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(0, 72, 0, 22)
+	button.Position = UDim2.new(1, -72, 0.5, -11)
+	button.BackgroundColor3 = theme.Second
+	button.BorderSizePixel = 0
+	button.TextSize = 11
+	button.Font = Enum.Font.GothamBold
+	button:SetAttribute("HyperVRole", "ToggleButton")
+	button.Parent = row
+	toolkit:CreateCorner(button, 6)
+
+	local control = {}
+	function control:setValue(value: boolean)
+		button.Text = if value then "ON" else "OFF"
+		button.BackgroundColor3 = if value then theme.Accent else theme.Second
+		button.TextColor3 = if value then Color3.new(1, 1, 1) else theme.Text
+	end
+
+	button.MouseButton1Click:Connect(function()
+		local nextValue = button.Text ~= "ON"
+		control:setValue(nextValue)
+		onChanged(nextValue)
+	end)
+
+	return control
+end
+
+local function createTextInput(parent: Instance, toolkit, theme, titleText: string, width: number, onChanged: (string) -> ())
+	local row = createRow(parent, theme, titleText)
+	local input = Instance.new("TextBox")
+	input.Size = UDim2.new(0, width, 0, 22)
+	input.Position = UDim2.new(1, -width, 0.5, -11)
+	input.BackgroundColor3 = theme.Second
+	input.BorderSizePixel = 0
+	input.TextColor3 = theme.Text
+	input.TextSize = 11
+	input.Font = Enum.Font.Gotham
+	input.ClearTextOnFocus = false
+	input:SetAttribute("HyperVRole", "FieldInput")
+	input.Parent = row
+	toolkit:CreateCorner(input, 6)
+	toolkit:CreateStroke(input, theme.Border)
+
+	input.FocusLost:Connect(function()
+		onChanged(input.Text)
+	end)
+
+	return {
+		setValue = function(_, value)
+			input.Text = tostring(value)
+		end,
+		input = input,
+	}
+end
+
+local function createNumberInput(parent: Instance, toolkit, theme, titleText: string, onChanged: (number) -> ())
+	return createTextInput(parent, toolkit, theme, titleText, 80, function(text)
+		onChanged(tonumber(text) or 0)
+	end)
+end
+
+local function createColorInput(parent: Instance, toolkit, theme, titleText: string, onChanged: (Color3) -> ())
+	local row = createRow(parent, theme, titleText)
+	local host = Instance.new("Frame")
+	host.Size = UDim2.new(0, 138, 0, 22)
+	host.Position = UDim2.new(1, -138, 0.5, -11)
+	host.BackgroundTransparency = 1
+	host.Parent = row
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.Padding = UDim.new(0, 4)
+	layout.Parent = host
+
+	local boxes = {}
+	local function emit()
+		local r = math.clamp(tonumber(boxes[1].Text) or 255, 0, 255)
+		local g = math.clamp(tonumber(boxes[2].Text) or 255, 0, 255)
+		local b = math.clamp(tonumber(boxes[3].Text) or 255, 0, 255)
+		onChanged(Color3.fromRGB(r, g, b))
+	end
+
+	for _ = 1, 3 do
+		local input = Instance.new("TextBox")
+		input.Size = UDim2.new(0, 43, 0, 22)
+		input.BackgroundColor3 = theme.Second
+		input.BorderSizePixel = 0
+		input.TextColor3 = theme.Text
+		input.TextSize = 10
+		input.Font = Enum.Font.Gotham
+		input.ClearTextOnFocus = false
+		input:SetAttribute("HyperVRole", "FieldInput")
+		input.Parent = host
+		toolkit:CreateCorner(input, 6)
+		boxes[#boxes + 1] = input
+		input.FocusLost:Connect(emit)
+	end
+
+	return {
+		setValue = function(_, value: Color3)
+			boxes[1].Text = tostring(math.floor(value.R * 255 + 0.5))
+			boxes[2].Text = tostring(math.floor(value.G * 255 + 0.5))
+			boxes[3].Text = tostring(math.floor(value.B * 255 + 0.5))
+		end,
+	}
+end
+
+local function createSlider(parent: Instance, toolkit, theme, titleText: string, minValue: number, maxValue: number, onChanged: (number) -> ())
+	local sectionRow = Instance.new("Frame")
+	sectionRow.Size = UDim2.new(1, 0, 0, 44)
+	sectionRow.BackgroundTransparency = 1
+	sectionRow.Parent = parent
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 16)
+	title.BackgroundTransparency = 1
+	title.Text = titleText
+	title.TextColor3 = theme.Text
+	title.TextSize = 11
+	title.Font = Enum.Font.Gotham
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title:SetAttribute("HyperVRole", "FieldLabel")
+	title.Parent = sectionRow
+
+	local valueLabel = Instance.new("TextLabel")
+	valueLabel.Size = UDim2.new(0, 56, 0, 16)
+	valueLabel.Position = UDim2.new(1, -56, 0, 0)
+	valueLabel.BackgroundTransparency = 1
+	valueLabel.TextColor3 = theme.Accent
+	valueLabel.TextSize = 11
+	valueLabel.Font = Enum.Font.GothamBold
+	valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+	valueLabel:SetAttribute("HyperVRole", "AccentValue")
+	valueLabel.Parent = sectionRow
+
+	local bar = Instance.new("Frame")
+	bar.Size = UDim2.new(1, 0, 0, 8)
+	bar.Position = UDim2.new(0, 0, 0, 24)
+	bar.BackgroundColor3 = theme.Second
+	bar.BorderSizePixel = 0
+	bar:SetAttribute("HyperVRole", "SliderTrack")
+	bar.Parent = sectionRow
+	toolkit:CreateCorner(bar, 4)
+
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.new(0, 0, 1, 0)
+	fill.BackgroundColor3 = theme.Accent
+	fill.BorderSizePixel = 0
+	fill:SetAttribute("HyperVRole", "SliderFill")
+	fill.Parent = bar
+	toolkit:CreateCorner(fill, 4)
+
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.new(0, 14, 0, 14)
+	knob.AnchorPoint = Vector2.new(0.5, 0.5)
+	knob.BackgroundColor3 = Color3.new(1, 1, 1)
+	knob.BorderSizePixel = 0
+	knob:SetAttribute("HyperVRole", "SliderKnob")
+	knob.Parent = bar
+	toolkit:CreateCorner(knob, 7)
+
+	local dragging = false
+	local control = {}
+
+	local function setPercent(percent: number, emit: boolean)
+		local nextPercent = math.clamp(percent, 0, 1)
+		fill.Size = UDim2.new(nextPercent, 0, 1, 0)
+		knob.Position = UDim2.new(nextPercent, 0, 0.5, 0)
+		local value = minValue + ((maxValue - minValue) * nextPercent)
+		valueLabel.Text = string.format("%.2f", value)
+		if emit then
+			onChanged(value)
+		end
+	end
+
+	local function updateFromX(x: number, emit: boolean)
+		local width = math.max(bar.AbsoluteSize.X, 1)
+		local percent = (x - bar.AbsolutePosition.X) / width
+		setPercent(percent, emit)
+	end
+
+	bar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			updateFromX(input.Position.X, true)
+		end
+	end)
+
+	bar.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+
+	function control:handleMove(input: InputObject)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			updateFromX(input.Position.X, true)
+		end
+	end
+
+	function control:setValue(value: number)
+		local percent = (value - minValue) / (maxValue - minValue)
+		setPercent(percent, false)
+	end
+
+	return control
+end
+
+function CharacterPreviewView.new(windowHandle, context, callbacks)
+	local self = setmetatable({}, CharacterPreviewView)
+	self._context = context
+	self._callbacks = callbacks
+	self.window = windowHandle
+	self.view = windowHandle.view
+	self.contentFrame = windowHandle.contentFrame
+	self.controls = {}
+	self.sliderControls = {}
+
+	local root = Instance.new("Frame")
+	root.Name = "CharacterPreviewRoot"
+	root.Size = UDim2.fromScale(1, 1)
+	root.BackgroundTransparency = 1
+	root.Parent = self.contentFrame
+
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Name = "Viewport"
+	viewport.Size = UDim2.new(1, -238, 1, -12)
+	viewport.Position = UDim2.new(0, 0, 0, 0)
+	viewport.BackgroundColor3 = context.theme.Main
+	viewport.BorderSizePixel = 0
+	viewport:SetAttribute("HyperVRole", "ViewportSurface")
+	viewport.Parent = root
+	context.toolkit:CreateCorner(viewport, 8)
+	context.toolkit:CreateStroke(viewport, context.theme.Border)
+
+	local overlay = Instance.new("Frame")
+	overlay.Name = "ViewportOverlay"
+	overlay.Size = UDim2.fromScale(1, 1)
+	overlay.BackgroundTransparency = 1
+	overlay.BorderSizePixel = 0
+	overlay.ClipsDescendants = true
+	overlay.Parent = viewport
+
+	local boxFrame = Instance.new("Frame")
+	boxFrame.Name = "EspBox"
+	boxFrame.Visible = false
+	boxFrame.BackgroundTransparency = 1
+	boxFrame.Parent = overlay
+
+	local infoLabel = Instance.new("TextLabel")
+	infoLabel.Name = "EspInfo"
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.TextWrapped = true
+	infoLabel.TextSize = 11
+	infoLabel.Font = Enum.Font.GothamBold
+	infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+	infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+	infoLabel.Visible = false
+	infoLabel.Parent = overlay
+
+	local tracerFrame = Instance.new("Frame")
+	tracerFrame.Name = "Tracer"
+	tracerFrame.Visible = false
+	tracerFrame.Parent = overlay
+
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.Name = "Status"
+	statusLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+	statusLabel.Position = UDim2.fromScale(0.5, 0.5)
+	statusLabel.Size = UDim2.new(1, -32, 0, 48)
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Text = ""
+	statusLabel.TextWrapped = true
+	statusLabel.TextColor3 = context.theme.SecondText
+	statusLabel.TextSize = 13
+	statusLabel.Font = Enum.Font.GothamMedium
+	statusLabel.Visible = false
+	statusLabel:SetAttribute("HyperVRole", "StatusText")
+	statusLabel.Parent = viewport
+
+	local camera = Instance.new("Camera")
+	camera.Name = "PreviewCamera"
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+
+	local worldModel = Instance.new("WorldModel")
+	worldModel.Parent = viewport
+
+	local controlsPanel = Instance.new("ScrollingFrame")
+	controlsPanel.Name = "Controls"
+	controlsPanel.Size = UDim2.new(0, 230, 1, -56)
+	controlsPanel.Position = UDim2.new(1, -230, 0, 0)
+	controlsPanel.BackgroundTransparency = 1
+	controlsPanel.BorderSizePixel = 0
+	controlsPanel.ScrollBarThickness = 4
+	controlsPanel.Parent = root
+
+	local controlsLayout = Instance.new("UIListLayout")
+	controlsLayout.Padding = UDim.new(0, 8)
+	controlsLayout.Parent = controlsPanel
+	controlsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		controlsPanel.CanvasSize = UDim2.new(0, 0, 0, controlsLayout.AbsoluteContentSize.Y + 8)
+	end)
+
+	local actionsRow = Instance.new("Frame")
+	actionsRow.Size = UDim2.new(0, 230, 0, 44)
+	actionsRow.Position = UDim2.new(1, -230, 1, -44)
+	actionsRow.BackgroundTransparency = 1
+	actionsRow.Parent = root
+
+	local actionLayout = Instance.new("UIListLayout")
+	actionLayout.FillDirection = Enum.FillDirection.Horizontal
+	actionLayout.Padding = UDim.new(0, 6)
+	actionLayout.Parent = actionsRow
+
+	local cancelButton = Instance.new("TextButton")
+	cancelButton.Size = UDim2.new(0, 70, 0, 32)
+	cancelButton.BackgroundColor3 = context.theme.Second
+	cancelButton.BorderSizePixel = 0
+	cancelButton.Text = "Cancel"
+	cancelButton.TextColor3 = context.theme.Text
+	cancelButton.TextSize = 12
+	cancelButton.Font = Enum.Font.GothamBold
+	cancelButton:SetAttribute("HyperVRole", "SecondaryButton")
+	cancelButton.Parent = actionsRow
+	context.toolkit:CreateCorner(cancelButton, 8)
+
+	local resetButton = cancelButton:Clone()
+	resetButton.Text = "Reset"
+	resetButton.Parent = actionsRow
+
+	local applyButton = cancelButton:Clone()
+	applyButton.Size = UDim2.new(0, 78, 0, 32)
+	applyButton.Text = "Apply"
+	applyButton.BackgroundColor3 = context.theme.Accent
+	applyButton.TextColor3 = Color3.new(1, 1, 1)
+	applyButton:SetAttribute("HyperVRole", "PrimaryButton")
+	applyButton.Parent = actionsRow
+
+	self.root = root
+	self.viewport = viewport
+	self.viewportOverlay = overlay
+	self.boxFrame = boxFrame
+	self.infoLabel = infoLabel
+	self.tracerFrame = tracerFrame
+	self.statusLabel = statusLabel
+	self.camera = camera
+	self.worldModel = worldModel
+	self.controlsPanel = controlsPanel
+
+	local cameraSection = createSection(controlsPanel, context.toolkit, context.theme, "Camera")
+	local transparencySection = createSection(controlsPanel, context.toolkit, context.theme, "Transparency")
+	local highlightSection = createSection(controlsPanel, context.toolkit, context.theme, "Highlight / Chams")
+	local espSection = createSection(controlsPanel, context.toolkit, context.theme, "ESP")
+	local effectsSection = createSection(controlsPanel, context.toolkit, context.theme, "Effects")
+	local charmsSection = createSection(controlsPanel, context.toolkit, context.theme, "Charms")
+
+	self.controls.autoRotate = createToggle(cameraSection, context.toolkit, context.theme, "Auto Rotate", function(value)
+		callbacks.onPatch({ orbit = { autoRotate = value } })
+	end)
+	self.controls.orbitSpeed = createNumberInput(cameraSection, context.toolkit, context.theme, "Speed", function(value)
+		callbacks.onPatch({ orbit = { speed = value } })
+	end)
+	self.controls.orbitRadius = createNumberInput(cameraSection, context.toolkit, context.theme, "Radius", function(value)
+		callbacks.onPatch({ orbit = { radius = value } })
+	end)
+	self.controls.orbitHeight = createNumberInput(cameraSection, context.toolkit, context.theme, "Height", function(value)
+		callbacks.onPatch({ orbit = { height = value } })
+	end)
+
+	local resetViewButton = Instance.new("TextButton")
+	resetViewButton.Size = UDim2.new(1, 0, 0, 26)
+	resetViewButton.BackgroundColor3 = context.theme.Second
+	resetViewButton.BorderSizePixel = 0
+	resetViewButton.Text = "Reset View"
+	resetViewButton.TextColor3 = context.theme.Text
+	resetViewButton.TextSize = 11
+	resetViewButton.Font = Enum.Font.GothamBold
+	resetViewButton.Parent = cameraSection
+	context.toolkit:CreateCorner(resetViewButton, 6)
+	resetViewButton.MouseButton1Click:Connect(callbacks.onResetView)
+
+	self.controls.transparency = createSlider(transparencySection, context.toolkit, context.theme, "Transparency", 0, 1, function(value)
+		callbacks.onPatch({ transparency = value })
+	end)
+	table.insert(self.sliderControls, self.controls.transparency)
+
+	self.controls.highlightEnabled = createToggle(highlightSection, context.toolkit, context.theme, "Enabled", function(value)
+		callbacks.onPatch({ highlight = { enabled = value } })
+	end)
+	self.controls.highlightFillColor = createColorInput(highlightSection, context.toolkit, context.theme, "Fill Color", function(value)
+		callbacks.onPatch({ highlight = { fillColor = value } })
+	end)
+	self.controls.highlightOutlineColor = createColorInput(highlightSection, context.toolkit, context.theme, "Outline Color", function(value)
+		callbacks.onPatch({ highlight = { outlineColor = value } })
+	end)
+	self.controls.highlightFillTransparency = createSlider(highlightSection, context.toolkit, context.theme, "Fill Transparency", 0, 1, function(value)
+		callbacks.onPatch({ highlight = { fillTransparency = value } })
+	end)
+	table.insert(self.sliderControls, self.controls.highlightFillTransparency)
+	self.controls.highlightOutlineTransparency = createSlider(highlightSection, context.toolkit, context.theme, "Outline Transparency", 0, 1, function(value)
+		callbacks.onPatch({ highlight = { outlineTransparency = value } })
+	end)
+	table.insert(self.sliderControls, self.controls.highlightOutlineTransparency)
+	self.controls.depthMode = createToggle(highlightSection, context.toolkit, context.theme, "Always On Top", function(value)
+		callbacks.onPatch({
+			highlight = {
+				depthMode = if value then Enum.HighlightDepthMode.AlwaysOnTop else Enum.HighlightDepthMode.Occluded,
+			},
+		})
+	end)
+
+	self.controls.espBoxEnabled = createToggle(espSection, context.toolkit, context.theme, "ESP Box", function(value)
+		callbacks.onPatch({ espBox = { enabled = value } })
+	end)
+	self.controls.espBoxColor = createColorInput(espSection, context.toolkit, context.theme, "Box Color", function(value)
+		callbacks.onPatch({ espBox = { color = value } })
+	end)
+	self.controls.espBoxThickness = createNumberInput(espSection, context.toolkit, context.theme, "Box Thickness", function(value)
+		callbacks.onPatch({ espBox = { thickness = value } })
+	end)
+	self.controls.espInfoEnabled = createToggle(espSection, context.toolkit, context.theme, "ESP Info", function(value)
+		callbacks.onPatch({ espInfo = { enabled = value } })
+	end)
+	self.controls.espShowName = createToggle(espSection, context.toolkit, context.theme, "Show Name", function(value)
+		callbacks.onPatch({ espInfo = { showName = value } })
+	end)
+	self.controls.espShowDistance = createToggle(espSection, context.toolkit, context.theme, "Show Distance", function(value)
+		callbacks.onPatch({ espInfo = { showDistance = value } })
+	end)
+	self.controls.espShowHealth = createToggle(espSection, context.toolkit, context.theme, "Show Health", function(value)
+		callbacks.onPatch({ espInfo = { showHealth = value } })
+	end)
+	self.controls.espInfoColor = createColorInput(espSection, context.toolkit, context.theme, "Info Color", function(value)
+		callbacks.onPatch({ espInfo = { textColor = value } })
+	end)
+	self.controls.tracerEnabled = createToggle(espSection, context.toolkit, context.theme, "Tracer", function(value)
+		callbacks.onPatch({ tracer = { enabled = value } })
+	end)
+	self.controls.tracerColor = createColorInput(espSection, context.toolkit, context.theme, "Tracer Color", function(value)
+		callbacks.onPatch({ tracer = { color = value } })
+	end)
+	self.controls.tracerThickness = createNumberInput(espSection, context.toolkit, context.theme, "Tracer Thick", function(value)
+		callbacks.onPatch({ tracer = { thickness = value } })
+	end)
+
+	self.controls.trailEnabled = createToggle(effectsSection, context.toolkit, context.theme, "Trail", function(value)
+		callbacks.onPatch({ trail = { enabled = value } })
+	end)
+	self.controls.trailColor = createColorInput(effectsSection, context.toolkit, context.theme, "Trail Color", function(value)
+		callbacks.onPatch({ trail = { color = value } })
+	end)
+	self.controls.trailLifetime = createNumberInput(effectsSection, context.toolkit, context.theme, "Trail Life", function(value)
+		callbacks.onPatch({ trail = { lifetime = value } })
+	end)
+	self.controls.particlesEnabled = createToggle(effectsSection, context.toolkit, context.theme, "Particles", function(value)
+		callbacks.onPatch({ particles = { enabled = value } })
+	end)
+	self.controls.particlesColor = createColorInput(effectsSection, context.toolkit, context.theme, "Particles Color", function(value)
+		callbacks.onPatch({ particles = { color = value } })
+	end)
+	self.controls.particlesRate = createNumberInput(effectsSection, context.toolkit, context.theme, "Particles Rate", function(value)
+		callbacks.onPatch({ particles = { rate = value } })
+	end)
+	self.controls.particlesSpeed = createNumberInput(effectsSection, context.toolkit, context.theme, "Particles Speed", function(value)
+		callbacks.onPatch({ particles = { speed = value } })
+	end)
+	self.controls.forceFieldEnabled = createToggle(effectsSection, context.toolkit, context.theme, "ForceField", function(value)
+		callbacks.onPatch({ forceField = { enabled = value } })
+	end)
+	self.controls.forceFieldVisible = createToggle(effectsSection, context.toolkit, context.theme, "FF Visible", function(value)
+		callbacks.onPatch({ forceField = { visible = value } })
+	end)
+	self.controls.forceFieldColor = createColorInput(effectsSection, context.toolkit, context.theme, "FF Color", function(value)
+		callbacks.onPatch({ forceField = { color = value } })
+	end)
+	self.controls.soundEnabled = createToggle(effectsSection, context.toolkit, context.theme, "Sound", function(value)
+		callbacks.onPatch({ sound = { enabled = value } })
+	end)
+	self.controls.soundId = createTextInput(effectsSection, context.toolkit, context.theme, "SoundId", 120, function(value)
+		callbacks.onPatch({ sound = { soundId = value } })
+	end)
+	self.controls.soundVolume = createNumberInput(effectsSection, context.toolkit, context.theme, "Volume", function(value)
+		callbacks.onPatch({ sound = { volume = value } })
+	end)
+	self.controls.soundSpeed = createNumberInput(effectsSection, context.toolkit, context.theme, "Playback", function(value)
+		callbacks.onPatch({ sound = { playbackSpeed = value } })
+	end)
+
+	self.controls.charmsVisible = createToggle(charmsSection, context.toolkit, context.theme, "Visible", function(value)
+		callbacks.onPatch({ charms = { visible = value } })
+	end)
+	self.controls.charmsTintEnabled = createToggle(charmsSection, context.toolkit, context.theme, "Tint", function(value)
+		callbacks.onPatch({ charms = { tintEnabled = value } })
+	end)
+	self.controls.charmsTintColor = createColorInput(charmsSection, context.toolkit, context.theme, "Tint Color", function(value)
+		callbacks.onPatch({ charms = { tintColor = value } })
+	end)
+
+	cancelButton.MouseButton1Click:Connect(callbacks.onCancel)
+	resetButton.MouseButton1Click:Connect(callbacks.onReset)
+	applyButton.MouseButton1Click:Connect(callbacks.onApply)
+
+	return self
+end
+
+function CharacterPreviewView:setConfig(config)
+	self.controls.autoRotate:setValue(config.orbit.autoRotate)
+	self.controls.orbitSpeed:setValue(config.orbit.speed)
+	self.controls.orbitRadius:setValue(config.orbit.radius)
+	self.controls.orbitHeight:setValue(config.orbit.height)
+	self.controls.transparency:setValue(config.transparency)
+	self.controls.highlightEnabled:setValue(config.highlight.enabled)
+	self.controls.highlightFillColor:setValue(config.highlight.fillColor)
+	self.controls.highlightOutlineColor:setValue(config.highlight.outlineColor)
+	self.controls.highlightFillTransparency:setValue(config.highlight.fillTransparency)
+	self.controls.highlightOutlineTransparency:setValue(config.highlight.outlineTransparency)
+	self.controls.depthMode:setValue(config.highlight.depthMode == Enum.HighlightDepthMode.AlwaysOnTop)
+	self.controls.espBoxEnabled:setValue(config.espBox.enabled)
+	self.controls.espBoxColor:setValue(config.espBox.color)
+	self.controls.espBoxThickness:setValue(config.espBox.thickness)
+	self.controls.espInfoEnabled:setValue(config.espInfo.enabled)
+	self.controls.espShowName:setValue(config.espInfo.showName)
+	self.controls.espShowDistance:setValue(config.espInfo.showDistance)
+	self.controls.espShowHealth:setValue(config.espInfo.showHealth)
+	self.controls.espInfoColor:setValue(config.espInfo.textColor)
+	self.controls.tracerEnabled:setValue(config.tracer.enabled)
+	self.controls.tracerColor:setValue(config.tracer.color)
+	self.controls.tracerThickness:setValue(config.tracer.thickness)
+	self.controls.trailEnabled:setValue(config.trail.enabled)
+	self.controls.trailColor:setValue(config.trail.color)
+	self.controls.trailLifetime:setValue(config.trail.lifetime)
+	self.controls.particlesEnabled:setValue(config.particles.enabled)
+	self.controls.particlesColor:setValue(config.particles.color)
+	self.controls.particlesRate:setValue(config.particles.rate)
+	self.controls.particlesSpeed:setValue(config.particles.speed)
+	self.controls.forceFieldEnabled:setValue(config.forceField.enabled)
+	self.controls.forceFieldVisible:setValue(config.forceField.visible)
+	self.controls.forceFieldColor:setValue(config.forceField.color)
+	self.controls.soundEnabled:setValue(config.sound.enabled)
+	self.controls.soundId:setValue(config.sound.soundId)
+	self.controls.soundVolume:setValue(config.sound.volume)
+	self.controls.soundSpeed:setValue(config.sound.playbackSpeed)
+	self.controls.charmsVisible:setValue(config.charms.visible)
+	self.controls.charmsTintEnabled:setValue(config.charms.tintEnabled)
+	self.controls.charmsTintColor:setValue(config.charms.tintColor)
+end
+
+function CharacterPreviewView:handleInputChanged(input: InputObject)
+	for _, control in ipairs(self.sliderControls) do
+		control:handleMove(input)
+	end
+end
+
+function CharacterPreviewView:setStatus(message: string?)
+	local text = message or ""
+	self.statusLabel.Text = text
+	self.statusLabel.Visible = text ~= ""
+end
+
+function CharacterPreviewView:applyTheme(theme)
+	self._context.theme = theme
+	self.viewport.BackgroundColor3 = theme.Main
+	self.statusLabel.TextColor3 = theme.SecondText
+
+	for _, descendant in ipairs(self.root:GetDescendants()) do
+		local role = descendant:GetAttribute("HyperVRole")
+		if role == "SectionSurface" and descendant:IsA("Frame") then
+			descendant.BackgroundColor3 = theme.Default
+		elseif role == "SectionTitle" and descendant:IsA("TextLabel") then
+			descendant.TextColor3 = theme.TitleText
+		elseif role == "FieldLabel" and descendant:IsA("TextLabel") then
+			descendant.TextColor3 = theme.Text
+		elseif role == "ToggleButton" and descendant:IsA("TextButton") then
+			local isOn = descendant.Text == "ON"
+			descendant.BackgroundColor3 = if isOn then theme.Accent else theme.Second
+			descendant.TextColor3 = if isOn then Color3.new(1, 1, 1) else theme.Text
+		elseif role == "FieldInput" and (descendant:IsA("TextBox") or descendant:IsA("TextButton")) then
+			descendant.BackgroundColor3 = theme.Second
+			descendant.TextColor3 = theme.Text
+			local stroke = descendant:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = theme.Border
+			end
+		elseif role == "AccentValue" and descendant:IsA("TextLabel") then
+			descendant.TextColor3 = theme.Accent
+		elseif role == "SliderTrack" and descendant:IsA("Frame") then
+			descendant.BackgroundColor3 = theme.Second
+		elseif role == "SliderFill" and descendant:IsA("Frame") then
+			descendant.BackgroundColor3 = theme.Accent
+		elseif role == "SliderKnob" and descendant:IsA("Frame") then
+			descendant.BackgroundColor3 = Color3.new(1, 1, 1)
+		elseif role == "SecondaryButton" and descendant:IsA("TextButton") then
+			descendant.BackgroundColor3 = theme.Second
+			descendant.TextColor3 = theme.Text
+		elseif role == "PrimaryButton" and descendant:IsA("TextButton") then
+			descendant.BackgroundColor3 = theme.Accent
+			descendant.TextColor3 = Color3.new(1, 1, 1)
+		elseif role == "StatusText" and descendant:IsA("TextLabel") then
+			descendant.TextColor3 = theme.SecondText
+		elseif role == "ViewportSurface" and descendant:IsA("ViewportFrame") then
+			descendant.BackgroundColor3 = theme.Main
+			local stroke = descendant:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = theme.Border
+			end
+		end
+	end
+end
+
+function CharacterPreviewView:open()
+	self.window.view.Visible = true
+end
+
+function CharacterPreviewView:close()
+	self.window.view.Visible = false
+end
+
+function CharacterPreviewView:dispose()
+	self.window:dispose()
+end
+
+return CharacterPreviewView

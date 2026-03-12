@@ -1,0 +1,428 @@
+--!strict
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local DisposableStore = require(script.Parent.Parent.Core.DisposableStore)
+local Effects = require(script.Parent.CharacterPreviewEffects)
+local Serializer = require(script.Parent.CharacterPreviewSerializer)
+local CharacterPreviewState = require(script.Parent.CharacterPreviewState)
+local CharacterPreviewView = require(script.Parent.CharacterPreviewView)
+
+type CharacterPreviewConfig = Serializer.CharacterPreviewConfig
+
+local DEFAULT_SIZE = Vector2.new(760, 560)
+
+local CharacterPreviewController = {}
+CharacterPreviewController.__index = CharacterPreviewController
+
+local function getLocalPlayer(): Player
+	return Players.LocalPlayer
+end
+
+local function getWorldPoint(cf: CFrame, offset: Vector3): Vector3
+	return (cf * CFrame.new(offset)).Position
+end
+
+function CharacterPreviewController.new(config, context)
+	local self = setmetatable({}, CharacterPreviewController)
+	self.id = config.Id or config.Name or "CharacterPreview"
+	self.kind = "characterPreview"
+	self.title = config.Title or "Character Preview"
+	self._context = context
+	self._config = config
+	self._usesLiveCharacter = config.TargetCharacter == nil
+	self._disposables = DisposableStore.new()
+	self._effectCache = {}
+	self._rotationDragging = false
+	self._lastPointer = nil
+	self._targetCharacter = config.TargetCharacter
+	self.previewCharacter = nil
+
+	local window = context.app:createDetachedWindow({
+		Id = self.id,
+		Name = self.id,
+		Title = self.title,
+		Size = config.Size or DEFAULT_SIZE,
+		Position = config.Position or context.defaultPreviewPosition,
+		Parent = config.Parent,
+		OnCloseRequested = function()
+			self:_cancel()
+			return false
+		end,
+	})
+
+	self.window = window
+	self.view = window.view
+	self.contentFrame = window.contentFrame
+	self.state = CharacterPreviewState.new(config.InitialConfig)
+	self._committedConfig = self.state:getConfig()
+
+	self._view = CharacterPreviewView.new(window, context, {
+		onPatch = function(patch)
+			self.state:update(patch)
+		end,
+		onApply = function()
+			self:_apply()
+		end,
+		onCancel = function()
+			self:_cancel()
+		end,
+		onReset = function()
+			self:reset()
+		end,
+		onResetView = function()
+			local defaults = Serializer.getDefaults()
+			self.state:update({
+				orbit = {
+					angle = defaults.orbit.angle,
+					radius = defaults.orbit.radius,
+					height = defaults.orbit.height,
+				},
+			})
+		end,
+	})
+
+	self._disposables:add(self.state:subscribe(function(snapshot)
+		self._view:setConfig(snapshot)
+		self:_applyVisuals(snapshot)
+		self:_updateCamera(snapshot)
+		self:_updateProjectedEffects(snapshot)
+	end))
+
+	self._disposables:add(self._view.viewport.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			self._rotationDragging = true
+			self._lastPointer = input.Position
+		end
+	end))
+
+	self._disposables:add(self._view.viewport.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			self._rotationDragging = false
+			self._lastPointer = nil
+		end
+	end))
+
+	self._disposables:add(UserInputService.InputChanged:Connect(function(input)
+		self._view:handleInputChanged(input)
+		if self._rotationDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			self:_onRotateMove(input.Position)
+		end
+	end))
+
+	self._disposables:add(RunService.RenderStepped:Connect(function(deltaTime)
+		self:_step(deltaTime)
+	end))
+
+	local player = getLocalPlayer()
+	if self._usesLiveCharacter then
+		self._targetCharacter = player.Character
+		self._disposables:add(player.CharacterAdded:Connect(function(character)
+			self._targetCharacter = character
+			self:_rebuildPreviewCharacter()
+			self:_applyVisuals(self.state:getConfig())
+		end))
+	end
+
+	self:_rebuildPreviewCharacter()
+	local initialSnapshot = self.state:getConfig()
+	self._view:setConfig(initialSnapshot)
+	self:_applyVisuals(initialSnapshot)
+
+	return self
+end
+
+function CharacterPreviewController:_clearPreviewCharacter()
+	Effects.clear(self._effectCache)
+
+	if self.previewCharacter then
+		self.previewCharacter:Destroy()
+		self.previewCharacter = nil
+	end
+
+	for _, child in ipairs(self._view.worldModel:GetChildren()) do
+		child:Destroy()
+	end
+end
+
+function CharacterPreviewController:_cloneCharacter(character: Model?): Model?
+	if not character then
+		return nil
+	end
+
+	local previousArchivable = character.Archivable
+	character.Archivable = true
+	local ok, clone = pcall(function()
+		return character:Clone()
+	end)
+	character.Archivable = previousArchivable
+
+	if not ok or not clone or not clone:IsA("Model") then
+		return nil
+	end
+
+	for _, descendant in ipairs(clone:GetDescendants()) do
+		if descendant:IsA("Script") or descendant:IsA("LocalScript") then
+			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
+			descendant.Anchored = true
+			descendant.CanCollide = false
+			descendant.CastShadow = false
+		end
+	end
+
+	local humanoid = clone:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	end
+
+	clone:PivotTo(CFrame.new(0, 0, 0))
+	return clone
+end
+
+function CharacterPreviewController:_rebuildPreviewCharacter()
+	self:_clearPreviewCharacter()
+
+	local clone = self:_cloneCharacter(self._targetCharacter)
+	if not clone then
+		self._view:setStatus("Waiting for character model...")
+		return
+	end
+
+	clone.Parent = self._view.worldModel
+	self.previewCharacter = clone
+	self._view:setStatus(nil)
+end
+
+function CharacterPreviewController:_getPivotPosition(): Vector3
+	if not self.previewCharacter then
+		return Vector3.zero
+	end
+
+	local root = self.previewCharacter:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root.Position
+	end
+
+	local cf = self.previewCharacter:GetBoundingBox()
+	return cf.Position
+end
+
+function CharacterPreviewController:_getHealthText(): string
+	if not self.previewCharacter then
+		return "0 HP"
+	end
+
+	local humanoid = self.previewCharacter:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return "N/A"
+	end
+
+	return string.format("%d / %d HP", math.floor(humanoid.Health + 0.5), math.floor(humanoid.MaxHealth + 0.5))
+end
+
+function CharacterPreviewController:_getDistance(): number
+	local currentCamera = Workspace.CurrentCamera
+	if not currentCamera then
+		return 0
+	end
+
+	return (currentCamera.CFrame.Position - self:_getPivotPosition()).Magnitude
+end
+
+function CharacterPreviewController:_projectBounds()
+	if not self.previewCharacter then
+		return nil
+	end
+
+	local camera = self._view.camera
+	local boundingBox, size = self.previewCharacter:GetBoundingBox()
+	local half = size * 0.5
+	local corners = {
+		getWorldPoint(boundingBox, Vector3.new(-half.X, -half.Y, -half.Z)),
+		getWorldPoint(boundingBox, Vector3.new(-half.X, -half.Y, half.Z)),
+		getWorldPoint(boundingBox, Vector3.new(-half.X, half.Y, -half.Z)),
+		getWorldPoint(boundingBox, Vector3.new(-half.X, half.Y, half.Z)),
+		getWorldPoint(boundingBox, Vector3.new(half.X, -half.Y, -half.Z)),
+		getWorldPoint(boundingBox, Vector3.new(half.X, -half.Y, half.Z)),
+		getWorldPoint(boundingBox, Vector3.new(half.X, half.Y, -half.Z)),
+		getWorldPoint(boundingBox, Vector3.new(half.X, half.Y, half.Z)),
+	}
+
+	local minX, minY = math.huge, math.huge
+	local maxX, maxY = -math.huge, -math.huge
+	local visible = false
+
+	for _, corner in ipairs(corners) do
+		local point, onScreen = camera:WorldToViewportPoint(corner)
+		if onScreen then
+			visible = true
+			minX = math.min(minX, point.X)
+			minY = math.min(minY, point.Y)
+			maxX = math.max(maxX, point.X)
+			maxY = math.max(maxY, point.Y)
+		end
+	end
+
+	if not visible then
+		return nil
+	end
+
+	return {
+		minX = minX,
+		minY = minY,
+		width = math.max(1, maxX - minX),
+		height = math.max(1, maxY - minY),
+	}
+end
+
+function CharacterPreviewController:_applyVisuals(snapshot: CharacterPreviewConfig)
+	if not self.previewCharacter then
+		self._view:setStatus("Waiting for character model...")
+		self._view.boxFrame.Visible = false
+		self._view.infoLabel.Visible = false
+		self._view.tracerFrame.Visible = false
+		return
+	end
+
+	self._view:setStatus(nil)
+	Effects.applyTransparency(self.previewCharacter, snapshot.transparency)
+	Effects.applyCharms(self.previewCharacter, snapshot.charms, self._effectCache)
+	Effects.applyHighlight(self.previewCharacter, snapshot.highlight, self._effectCache)
+	Effects.applyTrail(self.previewCharacter, snapshot.trail, self._effectCache)
+	Effects.applyParticles(self.previewCharacter, snapshot.particles, self._effectCache)
+	Effects.applyForceField(self.previewCharacter, snapshot.forceField, self._effectCache)
+	Effects.applySound(self.previewCharacter, snapshot.sound, self._effectCache)
+end
+
+function CharacterPreviewController:_updateProjectedEffects(snapshot: CharacterPreviewConfig)
+	local bounds = self:_projectBounds()
+	Effects.applyEspBox(self._view.viewportOverlay, self._view.boxFrame, bounds, snapshot.espBox)
+	Effects.applyEspInfo(
+		self._view.infoLabel,
+		bounds,
+		snapshot.espInfo,
+		if self._targetCharacter then self._targetCharacter.Name else "Character",
+		self:_getDistance(),
+		self:_getHealthText()
+	)
+	Effects.applyTracer(self._view.tracerFrame, bounds, self._view.viewportOverlay.AbsoluteSize, snapshot.tracer)
+end
+
+function CharacterPreviewController:_updateCamera(snapshot: CharacterPreviewConfig)
+	local pivot = self:_getPivotPosition()
+	local orbit = snapshot.orbit
+	local x = orbit.radius * math.cos(orbit.angle)
+	local z = orbit.radius * math.sin(orbit.angle)
+	local cameraPosition = pivot + Vector3.new(x, orbit.height, z)
+	self._view.camera.CFrame = CFrame.lookAt(cameraPosition, pivot + Vector3.new(0, 1, 0))
+end
+
+function CharacterPreviewController:_step(deltaTime: number)
+	local snapshot = self.state:getConfig()
+	if snapshot.orbit.autoRotate and not self._rotationDragging then
+		snapshot = self.state:update({
+			orbit = {
+				angle = snapshot.orbit.angle + (snapshot.orbit.speed * deltaTime),
+			},
+		})
+	end
+
+	self:_updateCamera(snapshot)
+	if self.previewCharacter then
+		Effects.applyTrail(self.previewCharacter, snapshot.trail, self._effectCache)
+	end
+	self:_updateProjectedEffects(snapshot)
+end
+
+function CharacterPreviewController:_onRotateMove(position: Vector3)
+	if not self._lastPointer then
+		self._lastPointer = position
+		return
+	end
+
+	local delta = position - self._lastPointer
+	self._lastPointer = position
+
+	local snapshot = self.state:getConfig()
+	self.state:update({
+		orbit = {
+			angle = snapshot.orbit.angle - (delta.X * 0.01),
+			height = snapshot.orbit.height + (delta.Y * 0.01),
+		},
+	})
+end
+
+function CharacterPreviewController:_apply()
+	local snapshot = self.state:getConfig()
+	self._committedConfig = Serializer.snapshot(snapshot)
+	if self._config.OnApply then
+		self._config.OnApply(snapshot)
+	end
+	self:close()
+end
+
+function CharacterPreviewController:_cancel()
+	self.state:setConfig(self._committedConfig)
+	if self._config.OnCancel then
+		self._config.OnCancel()
+	end
+	self:close()
+end
+
+function CharacterPreviewController:getPresetValue()
+	return self.state:getConfig()
+end
+
+function CharacterPreviewController:applyPresetValue(value)
+	self.state:setConfig(value)
+	self._committedConfig = self.state:getConfig()
+end
+
+function CharacterPreviewController:setConfig(config)
+	self.state:setConfig(config)
+	self._committedConfig = self.state:getConfig()
+end
+
+function CharacterPreviewController:getConfig()
+	return self.state:getConfig()
+end
+
+function CharacterPreviewController:reset()
+	self.state:reset()
+end
+
+function CharacterPreviewController:setTargetCharacter(model: Model?)
+	self._usesLiveCharacter = model == nil
+	self._targetCharacter = if model == nil then getLocalPlayer().Character else model
+	self:_rebuildPreviewCharacter()
+	self:_applyVisuals(self.state:getConfig())
+end
+
+function CharacterPreviewController:applyTheme(theme, layout)
+	self._context.theme = theme or self._context.theme
+	self._context.layout = layout or self._context.layout
+	self.window:applyTheme(self._context.theme)
+	self._view:applyTheme(self._context.theme)
+end
+
+function CharacterPreviewController:open()
+	self.window:open()
+end
+
+function CharacterPreviewController:close()
+	self.window:close()
+end
+
+function CharacterPreviewController:dispose()
+	self._rotationDragging = false
+	self._lastPointer = nil
+	self:_clearPreviewCharacter()
+	self._disposables:cleanup()
+	self._view:dispose()
+end
+
+return CharacterPreviewController

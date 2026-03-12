@@ -1,0 +1,97 @@
+--!strict
+
+local UserInputService = game:GetService("UserInputService")
+
+export type DragCallbacks = {
+	canDrag: (() -> boolean)?,
+	onDragStart: ((input: InputObject, startPosition: UDim2) -> ())?,
+	onDragMove: ((input: InputObject, newPosition: UDim2, delta: Vector3) -> ())?,
+	onDragEnd: ((input: InputObject, endPosition: UDim2) -> ())?,
+}
+
+local DragController = {}
+
+function DragController.attach(frame: GuiObject, dragArea: GuiObject, callbacks: DragCallbacks?): () -> ()
+	local options = callbacks or {}
+	local dragging = false
+	local dragInput: InputObject? = nil
+	local dragStart: Vector3? = nil
+	local startPosition: UDim2? = nil
+	local activePointerType: Enum.UserInputType? = nil
+
+	local began = dragArea.InputBegan:Connect(function(input)
+		if options.canDrag and options.canDrag() == false then
+			return
+		end
+
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			activePointerType = input.UserInputType
+			dragStart = input.Position
+			startPosition = frame.Position
+			dragInput = input
+
+			if options.onDragStart and startPosition then
+				options.onDragStart(input, startPosition)
+			end
+		end
+	end)
+
+	local changed = dragArea.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			dragInput = input
+		end
+	end)
+
+	local inputChanged = UserInputService.InputChanged:Connect(function(input)
+		if not dragging or not dragStart or not startPosition then
+			return
+		end
+
+		if dragInput and input ~= dragInput then
+			return
+		end
+
+		if activePointerType == Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			return
+		end
+
+		if activePointerType == Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		local delta = input.Position - dragStart
+		local nextPosition = UDim2.new(
+			startPosition.X.Scale,
+			startPosition.X.Offset + delta.X,
+			startPosition.Y.Scale,
+			startPosition.Y.Offset + delta.Y
+		)
+
+		frame.Position = nextPosition
+		if options.onDragMove then
+			options.onDragMove(input, nextPosition, delta)
+		end
+	end)
+
+	local ended = UserInputService.InputEnded:Connect(function(input)
+		if dragging and input.UserInputType == activePointerType then
+			dragging = false
+			dragInput = nil
+			activePointerType = nil
+
+			if options.onDragEnd then
+				options.onDragEnd(input, frame.Position)
+			end
+		end
+	end)
+
+	return function()
+		began:Disconnect()
+		changed:Disconnect()
+		inputChanged:Disconnect()
+		ended:Disconnect()
+	end
+end
+
+return DragController
