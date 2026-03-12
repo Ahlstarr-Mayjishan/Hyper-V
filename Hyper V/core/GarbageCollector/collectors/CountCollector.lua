@@ -60,17 +60,17 @@ function CountCollector:CollectByCount(entries: {any}, collectorFunc: (id: strin
             local toRemove = count - rule.MaxCount
             
             -- Sort based on strategy
-            if rule.Strategy == "oldest" then
-                table.sort(typeEntries, function(a, b)
-                    return a.CreatedAt < b.CreatedAt
-                })
-            elseif rule.Strategy == "newest" then
-                table.sort(typeEntries, function(a, b)
-                    return a.CreatedAt > b.CreatedAt
-                })
-            elseif rule.Strategy == "lru" then
-                table.sort(typeEntries, function(a, b)
-                    return a.LastUsed < b.LastUsed
+	            if rule.Strategy == "oldest" then
+	                table.sort(typeEntries, function(a, b)
+	                    return a.CreatedAt < b.CreatedAt
+	                end)
+	            elseif rule.Strategy == "newest" then
+	                table.sort(typeEntries, function(a, b)
+	                    return a.CreatedAt > b.CreatedAt
+	                end)
+	            elseif rule.Strategy == "lru" then
+	                table.sort(typeEntries, function(a, b)
+	                    return a.LastUsed < b.LastUsed
                 end)
             end
             
@@ -120,17 +120,17 @@ function CountCollector:GetEntriesToCleanup(entries: {any}): {string}
             local toRemove = count - rule.MaxCount
             
             -- Sort by strategy
-            if rule.Strategy == "oldest" then
-                table.sort(typeEntries, function(a, b)
-                    return a.CreatedAt < b.CreatedAt
-                })
-            elseif rule.Strategy == "newest" then
-                table.sort(typeEntries, function(a, b)
-                    return a.CreatedAt > b.CreatedAt
-                })
-            elseif rule.Strategy == "lru" then
-                table.sort(typeEntries, function(a, b)
-                    return a.LastUsed < b.LastUsed
+	            if rule.Strategy == "oldest" then
+	                table.sort(typeEntries, function(a, b)
+	                    return a.CreatedAt < b.CreatedAt
+	                end)
+	            elseif rule.Strategy == "newest" then
+	                table.sort(typeEntries, function(a, b)
+	                    return a.CreatedAt > b.CreatedAt
+	                end)
+	            elseif rule.Strategy == "lru" then
+	                table.sort(typeEntries, function(a, b)
+	                    return a.LastUsed < b.LastUsed
                 end)
             end
             
