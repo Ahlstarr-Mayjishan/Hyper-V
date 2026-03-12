@@ -87,6 +87,10 @@ function Scan-Patterns {
 			Add-Finding "warning" $relative $lineNumber "ambiguous-cast-statement" "Line starts with (self :: any); this has caused Luau parser ambiguity in Studio."
 		}
 
+		if ($line -match '^\s*self\.[A-Za-z_][A-Za-z0-9_]*\s*:\s*.+\s*=') {
+			Add-Finding "error" $relative $lineNumber "invalid-field-annotation" "Roblox parser rejects field annotations like self.Field: Type = value; cast the value instead."
+		}
+
 		if ($line -match '\bEnum\.EasingDirection\.Loop\b') {
 			Add-Finding "error" $relative $lineNumber "invalid-enum" "Enum.EasingDirection.Loop does not exist."
 		}

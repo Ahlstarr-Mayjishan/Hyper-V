@@ -32,7 +32,7 @@ function AdaptiveStrategy.new(config: AdaptiveConfig?)
     self.Config = config or DEFAULT_CONFIG
     
     -- State
-    self.CurrentLevel: PressureLevel = "normal"
+    self.CurrentLevel = "normal" :: PressureLevel
     self.MemoryPercent = 0
     self.LastCleanupTime = os.time()
     self.CleanupCount = 0
