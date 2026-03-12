@@ -3,6 +3,18 @@
 local CharacterPreviewView = {}
 CharacterPreviewView.__index = CharacterPreviewView
 
+local function setGuiZIndex(root: Instance, zIndex: number)
+	if root:IsA("GuiObject") then
+		root.ZIndex = zIndex
+	end
+
+	for _, descendant in ipairs(root:GetDescendants()) do
+		if descendant:IsA("GuiObject") then
+			descendant.ZIndex = zIndex
+		end
+	end
+end
+
 local function createSection(parent: Instance, toolkit, theme, titleText: string)
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.new(1, -8, 0, 0)
@@ -298,6 +310,7 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self.contentFrame = windowHandle.contentFrame
 	self.controls = {}
 	self.sliderControls = {}
+	local baseZIndex = math.max(2, (self.view.ZIndex or 1) + 2)
 
 	local root = Instance.new("Frame")
 	root.Name = "CharacterPreviewRoot"
@@ -779,6 +792,12 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	cancelButton.MouseButton1Click:Connect(callbacks.onCancel)
 	resetButton.MouseButton1Click:Connect(callbacks.onReset)
 	applyButton.MouseButton1Click:Connect(callbacks.onApply)
+
+	setGuiZIndex(root, baseZIndex)
+	boxFrame.ZIndex = baseZIndex + 1
+	infoLabel.ZIndex = baseZIndex + 2
+	tracerFrame.ZIndex = baseZIndex + 1
+	statusLabel.ZIndex = baseZIndex + 3
 
 	return self
 end

@@ -77,6 +77,7 @@ function CharacterPreviewController.new(config, context)
 		Size = config.Size or DEFAULT_SIZE,
 		Position = config.Position or context.defaultPreviewPosition,
 		Parent = config.Parent,
+		StackContent = false,
 		OnCloseRequested = function()
 			self:_cancel()
 			return false
