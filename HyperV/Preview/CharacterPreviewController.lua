@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local ContextActionService = game:GetService("ContextActionService")
 
 local DisposableStore = require(script.Parent.Parent.Core.DisposableStore)
 local Effects = require(script.Parent.CharacterPreviewEffects)
@@ -183,6 +184,7 @@ function CharacterPreviewController.new(config, context)
 	self._lastVisualConfig = nil
 	self._rotationDragging = false
 	self._lastPointer = nil
+	self._wheelActionName = ("HyperVPreviewWheel_%s"):format(self.id)
 	self._targetCharacter = config.TargetCharacter
 	self._lastLiveCharacter = nil
 	self.previewCharacter = nil
@@ -206,6 +208,7 @@ function CharacterPreviewController.new(config, context)
 	self.contentFrame = window.contentFrame
 	self.state = CharacterPreviewState.new(config.InitialConfig)
 	self._committedConfig = self.state:getConfig()
+	self._zoomTargetRadius = self.state:getConfig().orbit.radius
 
 	self._view = CharacterPreviewView.new(window, context, {
 		onPatch = function(patch)
@@ -233,6 +236,7 @@ function CharacterPreviewController.new(config, context)
 	})
 
 	self._disposables:add(self.state:subscribe(function(snapshot)
+		self._zoomTargetRadius = self._zoomTargetRadius or snapshot.orbit.radius
 		self._view:setConfig(snapshot)
 		local nextVisualConfig = getVisualConfig(snapshot)
 		if not deepEqual(self._lastVisualConfig, nextVisualConfig) then
@@ -268,6 +272,22 @@ function CharacterPreviewController.new(config, context)
 			self:_onZoomInput(input)
 		end
 	end))
+
+	ContextActionService:BindActionAtPriority(
+		self._wheelActionName,
+		function(_, _, input)
+			if self.view.Visible and input and isPointInsideGui(self._view.viewport, input.Position) then
+				return Enum.ContextActionResult.Sink
+			end
+			return Enum.ContextActionResult.Pass
+		end,
+		false,
+		Enum.ContextActionPriority.High.Value,
+		Enum.UserInputType.MouseWheel
+	)
+	self._disposables:add(function()
+		ContextActionService:UnbindAction(self._wheelActionName)
+	end)
 
 	self._disposables:add(UserInputService.InputChanged:Connect(function(input)
 		self._view:handleInputChanged(input)
@@ -586,6 +606,14 @@ function CharacterPreviewController:_step(deltaTime: number)
 	end
 
 	local snapshot = self.state:getConfig()
+	if math.abs(snapshot.orbit.radius - self._zoomTargetRadius) > 0.01 then
+		local alpha = math.clamp(deltaTime * 14, 0, 1)
+		snapshot = self.state:update({
+			orbit = {
+				radius = snapshot.orbit.radius + ((self._zoomTargetRadius - snapshot.orbit.radius) * alpha),
+			},
+		})
+	end
 	if snapshot.orbit.autoRotate and not self._rotationDragging then
 		snapshot = self.state:update({
 			orbit = {
@@ -612,12 +640,7 @@ function CharacterPreviewController:_onZoomInput(input: InputObject)
 		return
 	end
 
-	local nextRadius = math.clamp(snapshot.orbit.radius - (wheelDelta * 0.45), 3, 18)
-	self.state:update({
-		orbit = {
-			radius = nextRadius,
-		},
-	})
+	self._zoomTargetRadius = math.clamp(self._zoomTargetRadius - (wheelDelta * 0.85), 2.4, 18)
 end
 
 function CharacterPreviewController:_onRotateMove(position: Vector3)
