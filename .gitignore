@@ -1,0 +1,10 @@
+# Project place file
+/UI roblox.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+AI_FOLDER_MAP.md
+AI_FOLDER_MAP.md
