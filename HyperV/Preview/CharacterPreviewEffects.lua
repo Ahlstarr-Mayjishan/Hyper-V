@@ -14,6 +14,14 @@ local function getAdornmentTarget(model: Model): BasePart?
 	return model:FindFirstChild("HumanoidRootPart") :: BasePart? or model.PrimaryPart
 end
 
+local function ensureBaselinePartTables(cache)
+	cache.baselinePartTransparency = cache.baselinePartTransparency
+		or setmetatable({}, { __mode = "k" })
+	cache.baselinePartColor = cache.baselinePartColor or setmetatable({}, { __mode = "k" })
+	cache.baselineDecalTransparency = cache.baselineDecalTransparency
+		or setmetatable({}, { __mode = "k" })
+end
+
 function Effects.clear(cache)
 	for key, value in pairs(cache) do
 		if typeof(value) == "Instance" then
@@ -110,10 +118,30 @@ function Effects.ensurePreviewStage(worldModel: WorldModel, cache)
 	return stage
 end
 
-function Effects.restoreBaseVisualState(cache)
-	local transparencyOriginals = cache.transparencyOriginals
-	if transparencyOriginals then
-		for instance, originalTransparency in pairs(transparencyOriginals) do
+function Effects.captureBaseline(model: Model, cache)
+	ensureBaselinePartTables(cache)
+
+	forEachBasePart(model, function(part)
+		cache.baselinePartTransparency[part] = part.Transparency
+		cache.baselinePartColor[part] = part.Color
+	end)
+
+	for _, descendant in ipairs(model:GetDescendants()) do
+		if descendant:IsA("Decal") or descendant:IsA("Texture") then
+			cache.baselineDecalTransparency[descendant] = descendant.Transparency
+		end
+	end
+end
+
+function Effects.restoreBaseVisualState(model: Model, cache)
+	ensureBaselinePartTables(cache)
+	if next(cache.baselinePartTransparency) == nil then
+		Effects.captureBaseline(model, cache)
+	end
+
+	local baselinePartTransparency = cache.baselinePartTransparency
+	if baselinePartTransparency then
+		for instance, originalTransparency in pairs(baselinePartTransparency) do
 			if typeof(instance) == "Instance" and instance.Parent and instance:IsA("BasePart") then
 				instance.LocalTransparencyModifier = 0
 				instance.Transparency = originalTransparency
@@ -121,24 +149,20 @@ function Effects.restoreBaseVisualState(cache)
 		end
 	end
 
-	local decalOriginals = cache.decalOriginals
-	if decalOriginals then
-		for instance, originalTransparency in pairs(decalOriginals) do
-			if typeof(instance) == "Instance" and instance.Parent and (instance:IsA("Decal") or instance:IsA("Texture")) then
-				instance.Transparency = originalTransparency
+	local baselinePartColor = cache.baselinePartColor
+	if baselinePartColor then
+		for instance, originalColor in pairs(baselinePartColor) do
+			if typeof(instance) == "Instance" and instance.Parent and instance:IsA("BasePart") then
+				instance.Color = originalColor
 			end
 		end
 	end
 
-	local charmsOriginalColors = cache.charmsOriginalColors
-	local charmsOriginalTransparency = cache.charmsOriginalTransparency
-	if charmsOriginalColors then
-		for instance, originalColor in pairs(charmsOriginalColors) do
-			if typeof(instance) == "Instance" and instance.Parent and instance:IsA("BasePart") then
-				instance.Color = originalColor
-				if charmsOriginalTransparency and charmsOriginalTransparency[instance] ~= nil then
-					instance.Transparency = charmsOriginalTransparency[instance]
-				end
+	local baselineDecalTransparency = cache.baselineDecalTransparency
+	if baselineDecalTransparency then
+		for instance, originalTransparency in pairs(baselineDecalTransparency) do
+			if typeof(instance) == "Instance" and instance.Parent and (instance:IsA("Decal") or instance:IsA("Texture")) then
+				instance.Transparency = originalTransparency
 			end
 		end
 	end
@@ -149,16 +173,18 @@ function Effects.restoreBaseVisualState(cache)
 end
 
 function Effects.applyTransparency(model: Model, value: number, cache)
-	cache.transparencyOriginals = cache.transparencyOriginals or setmetatable({}, { __mode = "k" })
-	cache.decalOriginals = cache.decalOriginals or setmetatable({}, { __mode = "k" })
+	ensureBaselinePartTables(cache)
+	if next(cache.baselinePartTransparency) == nil then
+		Effects.captureBaseline(model, cache)
+	end
 
 	local transparencyValue = math.clamp(value, 0, 1)
 	forEachBasePart(model, function(part)
-		if cache.transparencyOriginals[part] == nil then
-			cache.transparencyOriginals[part] = part.Transparency
+		local originalTransparency = cache.baselinePartTransparency[part]
+		if originalTransparency == nil then
+			originalTransparency = part.Transparency
+			cache.baselinePartTransparency[part] = originalTransparency
 		end
-
-		local originalTransparency = cache.transparencyOriginals[part]
 		local appliedTransparency = transparencyValue
 
 		if part.Name == "Head" then
@@ -175,11 +201,11 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 
 	for _, descendant in ipairs(model:GetDescendants()) do
 		if descendant:IsA("Decal") or descendant:IsA("Texture") then
-			if cache.decalOriginals[descendant] == nil then
-				cache.decalOriginals[descendant] = descendant.Transparency
+			local originalTransparency = cache.baselineDecalTransparency[descendant]
+			if originalTransparency == nil then
+				originalTransparency = descendant.Transparency
+				cache.baselineDecalTransparency[descendant] = originalTransparency
 			end
-
-			local originalTransparency = cache.decalOriginals[descendant]
 			local appliedTransparency = transparencyValue
 			if descendant.Name == "face" or descendant.Name == "Face" then
 				appliedTransparency *= 0.72
@@ -191,21 +217,26 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 end
 
 function Effects.applyCharms(model: Model, config, cache, baseTransparency: number)
-	cache.charmsOriginalColors = cache.charmsOriginalColors or {}
-	cache.charmsOriginalTransparency = cache.charmsOriginalTransparency or setmetatable({}, { __mode = "k" })
+	ensureBaselinePartTables(cache)
+	if next(cache.baselinePartTransparency) == nil then
+		Effects.captureBaseline(model, cache)
+	end
 	local transparencyValue = math.clamp(baseTransparency or 0, 0, 1)
 
 	for _, accessory in ipairs(model:GetChildren()) do
 		if accessory:IsA("Accessory") then
 			for _, descendant in ipairs(accessory:GetDescendants()) do
 				if descendant:IsA("BasePart") then
-					if cache.charmsOriginalColors[descendant] == nil then
-						cache.charmsOriginalColors[descendant] = descendant.Color
+					local originalColor = cache.baselinePartColor[descendant]
+					if originalColor == nil then
+						originalColor = descendant.Color
+						cache.baselinePartColor[descendant] = originalColor
 					end
-					if cache.charmsOriginalTransparency[descendant] == nil then
-						cache.charmsOriginalTransparency[descendant] = descendant.Transparency
+					local originalTransparency = cache.baselinePartTransparency[descendant]
+					if originalTransparency == nil then
+						originalTransparency = descendant.Transparency
+						cache.baselinePartTransparency[descendant] = originalTransparency
 					end
-					local originalTransparency = cache.charmsOriginalTransparency[descendant]
 					if config.visible then
 						descendant.Transparency = originalTransparency + ((1 - originalTransparency) * (transparencyValue * 0.82))
 					else
@@ -214,7 +245,7 @@ function Effects.applyCharms(model: Model, config, cache, baseTransparency: numb
 					if config.tintEnabled then
 						descendant.Color = config.tintColor
 					else
-						descendant.Color = cache.charmsOriginalColors[descendant]
+						descendant.Color = originalColor
 					end
 				end
 			end

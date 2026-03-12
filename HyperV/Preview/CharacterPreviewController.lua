@@ -414,6 +414,7 @@ function CharacterPreviewController:_rebuildPreviewCharacter()
 	Effects.ensurePreviewStage(self._view.worldModel, self._effectCache)
 	clone.Parent = self._view.worldModel
 	self.previewCharacter = clone
+	Effects.captureBaseline(clone, self._effectCache)
 	self._view:setStatus(nil)
 	self._lastVisualConfig = nil
 end
@@ -510,7 +511,7 @@ function CharacterPreviewController:_applyVisuals(snapshot: CharacterPreviewConf
 	end
 
 	self._view:setStatus(nil)
-	Effects.restoreBaseVisualState(self._effectCache)
+	Effects.restoreBaseVisualState(self.previewCharacter, self._effectCache)
 	Effects.applyTransparency(self.previewCharacter, snapshot.transparency, self._effectCache)
 	Effects.applyCharms(self.previewCharacter, snapshot.charms, self._effectCache, snapshot.transparency)
 	Effects.applyHighlight(self.previewCharacter, snapshot.highlight, self._effectCache)
