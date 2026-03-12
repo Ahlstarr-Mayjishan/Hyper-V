@@ -1,6 +1,20 @@
 local DetachedWindow = {}
 DetachedWindow.__index = DetachedWindow
 
+local function shiftDescendantZIndex(root, delta, exclusions)
+    if delta == 0 then
+        return
+    end
+
+    exclusions = exclusions or {}
+
+    for _, descendant in ipairs(root:GetDescendants()) do
+        if descendant:IsA("GuiObject") and not exclusions[descendant] then
+            descendant.ZIndex = descendant.ZIndex + delta
+        end
+    end
+end
+
 local function createTextButton(theme, parent, text, size, position)
     local button = Instance.new("TextButton")
     button.Size = size
@@ -184,6 +198,20 @@ end
 
 function DetachedWindow:BringToFront()
     if self.Frame then
+        local frameDelta = 30 - self.Frame.ZIndex
+        local titleDelta = 31 - self.TitleBar.ZIndex
+        local contentDelta = 31 - self.Content.ZIndex
+        local dockMenuDelta = 35 - self.DockMenu.ZIndex
+
+        shiftDescendantZIndex(self.Frame, frameDelta, {
+            [self.TitleBar] = true,
+            [self.Content] = true,
+            [self.DockMenu] = true,
+        })
+        shiftDescendantZIndex(self.TitleBar, titleDelta)
+        shiftDescendantZIndex(self.Content, contentDelta)
+        shiftDescendantZIndex(self.DockMenu, dockMenuDelta)
+
         self.Frame.ZIndex = 30
         self.TitleBar.ZIndex = 31
         self.Content.ZIndex = 31

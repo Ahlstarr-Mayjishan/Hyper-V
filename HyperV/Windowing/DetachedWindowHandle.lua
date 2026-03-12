@@ -102,6 +102,9 @@ function DetachedWindowHandle:applyTheme(theme)
 end
 
 function DetachedWindowHandle:open()
+	if self._legacy and self._legacy.BringToFront then
+		self._legacy:BringToFront()
+	end
 	self.view.Visible = true
 end
 
