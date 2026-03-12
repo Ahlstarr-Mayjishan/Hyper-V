@@ -187,15 +187,18 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 		end
 		part.Transparency = originalTransparency
 		local appliedTransparency = transparencyValue
+		if transparencyValue < 0.999 then
+			if part:GetAttribute("HyperVPreviewHead") == true then
+				appliedTransparency *= 0.22
+			elseif part.Name == "Head" then
+				appliedTransparency *= 0.9
+			end
 
-		if part:GetAttribute("HyperVPreviewHead") == true then
-			appliedTransparency *= 0.22
-		elseif part.Name == "Head" then
-			appliedTransparency *= 0.9
-		end
-
-		if part:FindFirstAncestorOfClass("Accessory") then
-			appliedTransparency *= 0.82
+			if part:FindFirstAncestorOfClass("Accessory") then
+				appliedTransparency *= 0.82
+			end
+		else
+			appliedTransparency = 1
 		end
 
 		part.LocalTransparencyModifier = appliedTransparency
@@ -209,10 +212,14 @@ function Effects.applyTransparency(model: Model, value: number, cache)
 				cache.baselineDecalTransparency[descendant] = originalTransparency
 			end
 			local appliedTransparency = transparencyValue
-			if descendant:GetAttribute("HyperVPreviewFace") == true then
-				appliedTransparency *= 0.12
-			elseif descendant.Name == "face" or descendant.Name == "Face" then
-				appliedTransparency *= 0.72
+			if transparencyValue < 0.999 then
+				if descendant:GetAttribute("HyperVPreviewFace") == true then
+					appliedTransparency *= 0.12
+				elseif descendant.Name == "face" or descendant.Name == "Face" then
+					appliedTransparency *= 0.72
+				end
+			else
+				appliedTransparency = 1
 			end
 
 			descendant.Transparency = originalTransparency + ((1 - originalTransparency) * appliedTransparency)
@@ -243,7 +250,7 @@ function Effects.applyCharms(model: Model, config, cache, baseTransparency: numb
 					end
 					descendant.Transparency = originalTransparency
 					if config.visible then
-						descendant.LocalTransparencyModifier = transparencyValue * 0.82
+						descendant.LocalTransparencyModifier = if transparencyValue >= 0.999 then 1 else transparencyValue * 0.82
 					else
 						descendant.LocalTransparencyModifier = 1
 					end
