@@ -2,6 +2,8 @@
 
 local BrainPolicy = {}
 local SurfaceLifecyclePolicy = require(script.Parent.SurfaceLifecyclePolicy)
+local PreviewPolicy = require(script.Parent.PreviewPolicy)
+local DockPolicy = require(script.Parent.DockPolicy)
 
 local MODAL_BLOCKED_INTENTS = {
 	["surface.activate"] = true,
@@ -19,13 +21,6 @@ local function deny(policyCode: string, message: string)
 	return false, string.format("policy.%s: %s", policyCode, message), nil
 end
 
-local function makeCommand(commandType: string, payload: any)
-	return {
-		type = commandType,
-		payload = payload,
-	}
-end
-
 function BrainPolicy.evaluate(stateSnapshot, intent)
 	local activeModalId = stateSnapshot.activeModalId
 	if activeModalId and MODAL_BLOCKED_INTENTS[intent.type] and intent.sourceId ~= activeModalId then
@@ -37,63 +32,14 @@ function BrainPolicy.evaluate(stateSnapshot, intent)
 		return handled, reason, commands
 	end
 
-	if intent.type == "preview.patch" then
-		return true, nil, {
-			makeCommand("runtime.preview.patch", intent),
-			makeCommand("state.preview.patch", {
-				sourceId = intent.sourceId,
-				patch = intent.patch,
-			}),
-		}
+	handled, reason, commands = PreviewPolicy.evaluate(intent)
+	if handled ~= nil then
+		return handled, reason, commands
 	end
 
-	if intent.type == "preview.set" or intent.type == "preview.reset" then
-		return true, nil, {
-			makeCommand("runtime.preview.set", intent),
-			makeCommand("state.preview.set", {
-				sourceId = intent.sourceId,
-				config = intent.config,
-			}),
-		}
-	end
-
-	if intent.type == "preview.commit" then
-		return true, nil, {
-			makeCommand("runtime.preview.commit", intent),
-			makeCommand("state.preview.commit", {
-				sourceId = intent.sourceId,
-				snapshot = intent.snapshot,
-			}),
-		}
-	end
-
-	if intent.type == "preview.target" then
-		return true, nil, {
-			makeCommand("runtime.preview.target", intent),
-			makeCommand("state.preview.target", {
-				sourceId = intent.sourceId,
-				model = intent.model,
-			}),
-		}
-	end
-
-	if intent.type == "dock.attach" then
-		return true, nil, {
-			makeCommand("runtime.dock.attach", intent),
-			makeCommand("state.dock.attach", {
-				handleId = intent.handleId,
-				targetId = intent.targetId,
-			}),
-		}
-	end
-
-	if intent.type == "dock.detach" then
-		return true, nil, {
-			makeCommand("runtime.dock.detach", intent),
-			makeCommand("state.dock.detach", {
-				handleId = intent.handleId,
-			}),
-		}
+	handled, reason, commands = DockPolicy.evaluate(intent)
+	if handled ~= nil then
+		return handled, reason, commands
 	end
 
 	return false, "Unknown brain intent: " .. tostring(intent.type), nil

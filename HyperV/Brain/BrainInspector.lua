@@ -16,6 +16,25 @@ local function collectBlockedReasons(history)
 	return blocked
 end
 
+local function collectRecentBlockedDiagnostics(brain)
+	local diagnostics = brain.getDiagnosticsSnapshot and brain:getDiagnosticsSnapshot() or nil
+	if not diagnostics then
+		return {}
+	end
+
+	local lines = {}
+	for _, entry in ipairs(diagnostics.recentBlocked or {}) do
+		table.insert(lines, string.format(
+			"%s from %s -> %s%s",
+			tostring(entry.type or "unknown"),
+			tostring(entry.sourceId or "unknown"),
+			tostring(entry.policyCode or "unknown"),
+			entry.policyMessage and (" (" .. tostring(entry.policyMessage) .. ")") or ""
+		))
+	end
+	return lines
+end
+
 local function collectSurfaceSummary(snapshot)
 	local summary = {}
 	for _, surface in pairs(snapshot.surfaces) do
@@ -150,6 +169,7 @@ local function formatState(app, brain)
 	local blockedReasons = collectBlockedReasons(history)
 	local blockedIntents = collectBlockedIntents(history)
 	local domainSummary = collectIntentDomainSummary(history)
+	local recentBlockedDiagnostics = collectRecentBlockedDiagnostics(brain)
 	table.insert(lines, "")
 	table.insert(lines, "Blocked Reasons:")
 	if next(blockedReasons) == nil then
@@ -188,6 +208,16 @@ local function formatState(app, brain)
 		table.insert(lines, "- none")
 	else
 		for _, entry in ipairs(blockedIntents) do
+			table.insert(lines, "- " .. entry)
+		end
+	end
+
+	table.insert(lines, "")
+	table.insert(lines, "Recent Blocked Diagnostics:")
+	if #recentBlockedDiagnostics == 0 then
+		table.insert(lines, "- none")
+	else
+		for _, entry in ipairs(recentBlockedDiagnostics) do
 			table.insert(lines, "- " .. entry)
 		end
 	end
