@@ -4,6 +4,7 @@ export type SurfaceKind =
 	"window"
 	| "modal"
 	| "commandPalette"
+	| "contextMenu"
 	| "characterPreview"
 	| "notification"
 	| "dockMenu"

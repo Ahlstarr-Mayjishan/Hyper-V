@@ -10,6 +10,7 @@ local PresetRegistry = require(script.Parent.Parent.Registries.PresetRegistry)
 local CommandRegistry = require(script.Parent.Parent.Registries.CommandRegistry)
 local OverlayHost = require(script.Parent.Parent.Overlay.OverlayHost)
 local CommandPaletteController = require(script.Parent.Parent.Overlay.CommandPalette.CommandPaletteController)
+local ContextMenuController = require(script.Parent.Parent.Overlay.ContextMenuController)
 local ModalController = require(script.Parent.Parent.Overlay.ModalController)
 local DockRegistry = require(script.Parent.Parent.Windowing.DockRegistry)
 local DockPanelView = require(script.Parent.Parent.Windowing.DockPanelView)
@@ -40,6 +41,7 @@ local SURFACE_PRIORITY = {
 	window = 10,
 	detached = 20,
 	palette = 40,
+	contextMenu = 45,
 	modal = 60,
 }
 
@@ -785,6 +787,12 @@ function App:createModal(config)
 	local modal = ModalController.new(config or {}, self._context)
 	self:_registerSurface(modal, SURFACE_PRIORITY.modal)
 	return modal
+end
+
+function App:createContextMenu(config)
+	local menu = ContextMenuController.new(config or {}, self._context)
+	self:_registerSurface(menu, SURFACE_PRIORITY.contextMenu)
+	return menu
 end
 
 function App:createBrainInspector()
