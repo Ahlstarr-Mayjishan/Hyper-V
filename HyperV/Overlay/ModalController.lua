@@ -16,6 +16,7 @@ function ModalController.new(config, context)
 	self.kind = "modal"
 	self.title = config.Title or "Modal"
 	self._claimId = self.id .. ":modal"
+	self._isClosed = false
 	self.autoActivate = true
 	self._legacy = LegacyModal.Show({
 		Name = self.id,
@@ -29,6 +30,13 @@ function ModalController.new(config, context)
 				config.OnClose()
 			end
 			self:_releaseClaims()
+			if context.brain then
+				context.brain:dispatch({
+					type = "surface.unregister",
+					sourceId = self.id,
+					surfaceId = self.id,
+				})
+			end
 		end,
 	}, context.theme, context.toolkit)
 	self.view = self._legacy.Overlay
@@ -60,10 +68,21 @@ function ModalController:activate()
 end
 
 function ModalController:close()
+	if self._isClosed then
+		return
+	end
+	self._isClosed = true
 	if self._legacy and self._legacy.Close then
 		self._legacy:Close()
 	else
 		self:_releaseClaims()
+		if self._context.brain then
+			self._context.brain:dispatch({
+				type = "surface.unregister",
+				sourceId = self.id,
+				surfaceId = self.id,
+			})
+		end
 	end
 end
 

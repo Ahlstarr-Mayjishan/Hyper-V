@@ -3,10 +3,11 @@
 local DockRegistry = {}
 DockRegistry.__index = DockRegistry
 
-function DockRegistry.new(protectionGate)
+function DockRegistry.new(protectionGate, brain)
 	return setmetatable({
 		targets = {},
 		_protectionGate = protectionGate,
+		_brain = brain,
 	}, DockRegistry)
 end
 
@@ -44,20 +45,35 @@ function DockRegistry:dock(handle, targetId: string)
 		return
 	end
 
-	local gate = registry._protectionGate
-	if not gate then
-		target:attach(handle)
+	local apply = function()
+		local gate = registry._protectionGate
+		if not gate then
+			target:attach(handle)
+			return
+		end
+
+		gate:execute("dock.attach", {
+			sourceId = handle.id,
+			handle = handle,
+			targetId = targetId,
+			target = target,
+		}, function(request)
+			request.target:attach(request.handle)
+		end)
+	end
+
+	if registry._brain then
+		registry._brain:dispatch({
+			type = "dock.attach",
+			sourceId = handle.id,
+			handleId = handle.id,
+			targetId = targetId,
+			apply = apply,
+		})
 		return
 	end
 
-	gate:execute("dock.attach", {
-		sourceId = handle.id,
-		handle = handle,
-		targetId = targetId,
-		target = target,
-	}, function(request)
-		request.target:attach(request.handle)
-	end)
+	apply()
 end
 
 function DockRegistry:undock(handle)
@@ -67,23 +83,37 @@ function DockRegistry:undock(handle)
 	end
 
 	local registry = self :: any
-	local gate = registry._protectionGate
-	if gate then
-		gate:execute("dock.detach", {
+	local apply = function()
+		local gate = registry._protectionGate
+		if gate then
+			gate:execute("dock.detach", {
+				sourceId = handle.id,
+				handle = handle,
+			}, function(request)
+				local dockState = request.handle._dockState
+				if dockState and dockState.panel and dockState.panel.remove then
+					dockState.panel:remove(request.handle)
+				end
+			end)
+			return
+		end
+
+		if state.panel and state.panel.remove then
+			state.panel:remove(handle)
+		end
+	end
+
+	if registry._brain then
+		registry._brain:dispatch({
+			type = "dock.detach",
 			sourceId = handle.id,
-			handle = handle,
-		}, function(request)
-			local dockState = request.handle._dockState
-			if dockState and dockState.panel and dockState.panel.remove then
-				dockState.panel:remove(request.handle)
-			end
-		end)
+			handleId = handle.id,
+			apply = apply,
+		})
 		return
 	end
 
-	if state.panel and state.panel.remove then
-		state.panel:remove(handle)
-	end
+	apply()
 end
 
 return DockRegistry

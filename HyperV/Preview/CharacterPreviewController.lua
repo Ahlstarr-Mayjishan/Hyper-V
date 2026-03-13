@@ -682,22 +682,39 @@ end
 
 function CharacterPreviewController:_apply()
 	local snapshot = self.state:getConfig()
-	local gate = self._context.protectionGate
-	if gate then
-		gate:execute("preview.commit", {
+	local apply = function(request)
+		local gate = self._context.protectionGate
+		if gate then
+			return gate:execute("preview.commit", {
+				sourceId = self.id,
+				snapshot = request.snapshot,
+			}, function(gatedRequest)
+				self._committedConfig = Serializer.snapshot(gatedRequest.snapshot)
+				if self._config.OnApply then
+					self._config.OnApply(gatedRequest.snapshot)
+				end
+			end)
+		end
+
+		self._committedConfig = Serializer.snapshot(request.snapshot)
+		if self._config.OnApply then
+			self._config.OnApply(request.snapshot)
+		end
+		return true
+	end
+
+	local brain = self._context.brain
+	if brain then
+		brain:dispatch({
+			type = "preview.commit",
 			sourceId = self.id,
 			snapshot = snapshot,
-		}, function(request)
-			self._committedConfig = Serializer.snapshot(request.snapshot)
-			if self._config.OnApply then
-				self._config.OnApply(request.snapshot)
-			end
-		end)
+			apply = apply,
+		})
 	else
-		self._committedConfig = Serializer.snapshot(snapshot)
-		if self._config.OnApply then
-			self._config.OnApply(snapshot)
-		end
+		apply({
+			snapshot = snapshot,
+		})
 	end
 	self:close()
 end
@@ -711,35 +728,65 @@ function CharacterPreviewController:_cancel()
 end
 
 function CharacterPreviewController:_patchConfig(patch)
-	local gate = self._context.protectionGate
-	if not gate then
-		return self.state:update(patch)
+	local apply = function(request)
+		local gate = self._context.protectionGate
+		if not gate then
+			return self.state:update(request.patch)
+		end
+
+		return gate:execute("preview.patch", {
+			sourceId = self.id,
+			patch = request.patch,
+		}, function(gatedRequest)
+			return self.state:update(gatedRequest.patch)
+		end)
 	end
 
-	local result = gate:execute("preview.patch", {
-		sourceId = self.id,
-		patch = patch,
-	}, function(request)
-		return self.state:update(request.patch)
-	end)
+	local brain = self._context.brain
+	if brain then
+		local result = brain:dispatch({
+			type = "preview.patch",
+			sourceId = self.id,
+			patch = patch,
+			apply = apply,
+		})
+		return result or self.state:getConfig()
+	end
 
-	return result or self.state:getConfig()
+	return apply({
+		patch = patch,
+	}) or self.state:getConfig()
 end
 
 function CharacterPreviewController:_setConfig(config)
-	local gate = self._context.protectionGate
-	if not gate then
-		return self.state:setConfig(config)
+	local apply = function(request)
+		local gate = self._context.protectionGate
+		if not gate then
+			return self.state:setConfig(request.config)
+		end
+
+		return gate:execute("preview.set", {
+			sourceId = self.id,
+			config = request.config,
+		}, function(gatedRequest)
+			return self.state:setConfig(gatedRequest.config)
+		end)
 	end
 
-	local result = gate:execute("preview.set", {
-		sourceId = self.id,
-		config = config,
-	}, function(request)
-		return self.state:setConfig(request.config)
-	end)
+	local brain = self._context.brain
+	if brain then
+		local result = brain:dispatch({
+			type = "preview.set",
+			sourceId = self.id,
+			config = config,
+			apply = apply,
+		})
+		return result or self.state:getConfig()
+	end
 
-	return result or self.state:getConfig()
+	return apply({
+		config = config,
+	}) or self.state:getConfig()
 end
 
 function CharacterPreviewController:getPresetValue()
@@ -763,12 +810,34 @@ function CharacterPreviewController:getConfig()
 end
 
 function CharacterPreviewController:reset()
-	self:_setConfig(Serializer.getDefaults())
+	local defaults = Serializer.getDefaults()
+	local brain = self._context.brain
+	if brain then
+		brain:dispatch({
+			type = "preview.reset",
+			sourceId = self.id,
+			config = defaults,
+			apply = function(request)
+				local gate = self._context.protectionGate
+				if not gate then
+					return self.state:setConfig(request.config)
+				end
+
+				return gate:execute("preview.set", {
+					sourceId = self.id,
+					config = request.config,
+				}, function(gatedRequest)
+					return self.state:setConfig(gatedRequest.config)
+				end)
+			end,
+		})
+	else
+		self:_setConfig(defaults)
+	end
 	self._lastVisualConfig = nil
 end
 
 function CharacterPreviewController:setTargetCharacter(model: Model?)
-	local gate = self._context.protectionGate
 	local execute = function()
 		self._usesLiveCharacter = model == nil
 		self._targetCharacter = if model == nil then getUsableCharacter(getLocalPlayer()) else model
@@ -778,16 +847,34 @@ function CharacterPreviewController:setTargetCharacter(model: Model?)
 		self:_applyVisuals(self.state:getConfig())
 	end
 
-	if gate then
-		gate:execute("preview.target", {
+	local apply = function(request)
+		local gate = self._context.protectionGate
+		if gate then
+			return gate:execute("preview.target", {
+				sourceId = self.id,
+				model = request.model,
+			}, function()
+				execute()
+			end)
+		end
+		execute()
+		return true
+	end
+
+	local brain = self._context.brain
+	if brain then
+		brain:dispatch({
+			type = "preview.target",
 			sourceId = self.id,
 			model = model,
-		}, function()
-			execute()
-		end)
-	else
-		execute()
+			apply = apply,
+		})
+		return
 	end
+
+	apply({
+		model = model,
+	})
 end
 
 function CharacterPreviewController:applyTheme(theme, layout)

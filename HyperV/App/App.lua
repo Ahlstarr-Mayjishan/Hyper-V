@@ -18,6 +18,7 @@ local WindowController = require(script.Parent.Parent.Windowing.WindowController
 local CharacterPreviewController = require(script.Parent.Parent.Preview.CharacterPreviewController)
 local LegacyRendererFactory = require(script.Parent.Parent.Elements.LegacyRendererFactory)
 local PresetManager = require(script.Parent.Parent.Elements.PresetManager)
+local SystemBrain = require(script.Parent.Parent.Brain.SystemBrain)
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
 local InteractionAuthority = require(script.Parent.Parent.System.Authority.InteractionAuthority)
 local LayerAuthority = require(script.Parent.Parent.System.Authority.LayerAuthority)
@@ -288,10 +289,11 @@ function App.new(config)
 	self.interactionAuthority = InteractionAuthority.new()
 	self.layerAuthority = LayerAuthority.new()
 	self.protectionGate = ProtectionGate.new()
+	self.brain = SystemBrain.new()
 	self.toolkit._interactionAuthority = self.interactionAuthority
 	self.presetRegistry = PresetRegistry.new()
 	self.commandRegistry = CommandRegistry.new()
-	self.dockRegistry = DockRegistry.new(self.protectionGate)
+	self.dockRegistry = DockRegistry.new(self.protectionGate, self.brain)
 	self.text = Utf8Text
 	self.overlayHost = OverlayHost.new(self.screenGui, self.theme, self.toolkit, {
 		layerAuthority = self.layerAuthority,
@@ -317,6 +319,7 @@ function App.new(config)
 		interactionAuthority = self.interactionAuthority,
 		layerAuthority = self.layerAuthority,
 		protectionGate = self.protectionGate,
+		brain = self.brain,
 		gc = self.gc,
 		api = self.api,
 		animation = nil :: any,
@@ -340,6 +343,57 @@ function App.new(config)
 	self.protectionGate:register("preview.target", {
 		validate = validatePreviewTarget,
 	})
+	self.brain:registerHandler("runtime.surface.activate", function(payload)
+		local surface = payload.surface
+		if surface and surface.activate then
+			surface:activate()
+			return
+		end
+
+		if payload.surfaceId then
+			self.interactionAuthority:requestFocus({
+				id = payload.surfaceId,
+				priority = payload.priority or 0,
+			})
+			self.layerAuthority:bringToFront(payload.surfaceId)
+		end
+	end)
+	self.brain:registerHandler("runtime.preview.patch", function(payload)
+		if payload.apply then
+			return payload.apply(payload)
+		end
+		return nil
+	end)
+	self.brain:registerHandler("runtime.preview.set", function(payload)
+		if payload.apply then
+			return payload.apply(payload)
+		end
+		return nil
+	end)
+	self.brain:registerHandler("runtime.preview.commit", function(payload)
+		if payload.apply then
+			return payload.apply(payload)
+		end
+		return nil
+	end)
+	self.brain:registerHandler("runtime.preview.target", function(payload)
+		if payload.apply then
+			return payload.apply(payload)
+		end
+		return nil
+	end)
+	self.brain:registerHandler("runtime.dock.attach", function(payload)
+		if payload.apply then
+			return payload.apply(payload)
+		end
+		return nil
+	end)
+	self.brain:registerHandler("runtime.dock.detach", function(payload)
+		if payload.apply then
+			return payload.apply(payload)
+		end
+		return nil
+	end)
 	self.windows = {}
 	self._stylables = {}
 	local viewportConnection = nil
@@ -411,14 +465,23 @@ function App:_registerSurface(surface, priority: number)
 		end
 	end)
 
-	if surface.autoActivate ~= false and surface.activate then
-		surface:activate()
-	elseif surface.autoActivate ~= false then
-		self.interactionAuthority:requestFocus({
-			id = surface.id,
+	self.brain:dispatch({
+		type = "surface.register",
+		sourceId = surface.id,
+		surfaceId = surface.id,
+		kind = surface.kind or "surface",
+		title = surface.title,
+		priority = priority,
+	})
+
+	if surface.autoActivate ~= false then
+		self.brain:dispatch({
+			type = "surface.activate",
+			sourceId = surface.id,
+			surfaceId = surface.id,
+			surface = surface,
 			priority = priority,
 		})
-		self.layerAuthority:bringToFront(surface.id)
 	end
 
 	return surface
@@ -458,6 +521,10 @@ end
 
 function App:getProtectionGate()
 	return self.protectionGate
+end
+
+function App:getBrain()
+	return self.brain
 end
 
 function App:getPresetRegistry()
@@ -690,6 +757,7 @@ function App:createCharacterPreview(config)
 		interactionAuthority = self.interactionAuthority,
 		layerAuthority = self.layerAuthority,
 		protectionGate = self.protectionGate,
+		brain = self.brain,
 		gc = self.gc,
 		api = self.api,
 		animation = nil :: any,
