@@ -1,8 +1,7 @@
 --!strict
 
-export type ValidationResult = (boolean, string?)
-export type Validator = (request: any) -> ValidationResult
-export type MutationHandler = (request: any) -> any
+type Validator = (request: any) -> (boolean, string?)
+type MutationHandler = (request: any) -> any
 
 type RuleEntry = {
 	validate: Validator?,
@@ -23,7 +22,7 @@ function ProtectionGate:register(domain: string, config: { validate: Validator? 
 	}
 end
 
-function ProtectionGate:canExecute(domain: string, request: any): ValidationResult
+function ProtectionGate:canExecute(domain: string, request: any): (boolean, string?)
 	local rule = self._rules[domain]
 	if not rule or not rule.validate then
 		return true, nil
