@@ -23,6 +23,15 @@ local function setGuiZIndex(root: Instance, zIndex: number)
 	end
 end
 
+local function isPointInsideGui(guiObject: GuiObject, position: Vector3): boolean
+	local absolutePosition = guiObject.AbsolutePosition
+	local absoluteSize = guiObject.AbsoluteSize
+	return position.X >= absolutePosition.X
+		and position.X <= (absolutePosition.X + absoluteSize.X)
+		and position.Y >= absolutePosition.Y
+		and position.Y <= (absolutePosition.Y + absoluteSize.Y)
+end
+
 local function createSection(parent: Instance, toolkit, theme, titleText: string)
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.new(1, -8, 0, 0)
@@ -213,65 +222,6 @@ local function createNumberInput(parent: Instance, toolkit, theme, titleText: st
 	end)
 end
 
-local function createColorInput(parent: Instance, toolkit, theme, titleText: string, onChanged: (Color3) -> ())
-	local row, controlHost = createRow(parent, theme, titleText, 138, nil, 84, 96)
-	local host = Instance.new("Frame")
-	host.Size = UDim2.new(1, 0, 0, 22)
-	host.AnchorPoint = Vector2.new(0, 0.5)
-	host.Position = UDim2.new(0, 0, 0.5, 0)
-	host.BackgroundTransparency = 1
-	host.Parent = controlHost
-
-	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.Padding = UDim.new(0, 4)
-	layout.Parent = host
-
-	local boxes = {}
-	local function updateBoxLayout()
-		local gap = layout.Padding.Offset
-		local width = math.max(host.AbsoluteSize.X, 96)
-		local boxWidth = math.max(28, math.floor((width - (gap * 2)) / 3))
-		for _, box in ipairs(boxes) do
-			box.Size = UDim2.new(0, boxWidth, 0, 22)
-		end
-	end
-
-	local function emit()
-		local r = math.clamp(tonumber(boxes[1].Text) or 255, 0, 255)
-		local g = math.clamp(tonumber(boxes[2].Text) or 255, 0, 255)
-		local b = math.clamp(tonumber(boxes[3].Text) or 255, 0, 255)
-		onChanged(Color3.fromRGB(r, g, b))
-	end
-
-	for _ = 1, 3 do
-		local input = Instance.new("TextBox")
-		input.Size = UDim2.new(0, 43, 0, 22)
-		input.BackgroundColor3 = theme.Second
-		input.BorderSizePixel = 0
-		input.TextColor3 = theme.Text
-		input.TextSize = 10
-		input.Font = Enum.Font.Gotham
-		input.ClearTextOnFocus = false
-		input:SetAttribute("HyperVRole", "FieldInput")
-		input.Parent = host
-		toolkit:CreateCorner(input, 6)
-		boxes[#boxes + 1] = input
-		input.FocusLost:Connect(emit)
-	end
-
-	host:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateBoxLayout)
-	updateBoxLayout()
-
-	return {
-		setValue = function(_, value: Color3)
-			boxes[1].Text = tostring(math.floor(value.R * 255 + 0.5))
-			boxes[2].Text = tostring(math.floor(value.G * 255 + 0.5))
-			boxes[3].Text = tostring(math.floor(value.B * 255 + 0.5))
-		end,
-	}
-end
-
 local function createSlider(
 	parent: Instance,
 	toolkit,
@@ -400,6 +350,12 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self.contentFrame = windowHandle.contentFrame
 	self.controls = {}
 	self.sliderControls = {}
+	self._pickerColor = Color3.new(1, 1, 1)
+	self._pickerHueValue = 0
+	self._pickerSaturation = 0
+	self._pickerValue = 1
+	self._pickerDragging = nil
+	self._pickerChange = nil
 	local baseZIndex = math.max(2, (self.view.ZIndex or 1) + 2)
 
 	local root = Instance.new("Frame")
@@ -502,6 +458,168 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	local worldModel = Instance.new("WorldModel")
 	worldModel.Parent = viewport
 
+	local pickerPopup = Instance.new("Frame")
+	pickerPopup.Name = "ColorPickerPopup"
+	pickerPopup.Size = UDim2.new(0, 198, 0, 208)
+	pickerPopup.Visible = false
+	pickerPopup.BackgroundColor3 = context.theme.Default
+	pickerPopup.BorderSizePixel = 0
+	pickerPopup.ZIndex = baseZIndex + 8
+	pickerPopup:SetAttribute("HyperVRole", "PickerPopup")
+	pickerPopup.Parent = root
+	context.toolkit:CreateCorner(pickerPopup, 10)
+	context.toolkit:CreateStroke(pickerPopup, context.theme.Border)
+
+	local pickerPadding = Instance.new("UIPadding")
+	pickerPadding.PaddingTop = UDim.new(0, 8)
+	pickerPadding.PaddingBottom = UDim.new(0, 8)
+	pickerPadding.PaddingLeft = UDim.new(0, 8)
+	pickerPadding.PaddingRight = UDim.new(0, 8)
+	pickerPadding.Parent = pickerPopup
+
+	local pickerLayout = Instance.new("UIListLayout")
+	pickerLayout.Padding = UDim.new(0, 8)
+	pickerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	pickerLayout.Parent = pickerPopup
+
+	local pickerTitle = Instance.new("TextLabel")
+	pickerTitle.Size = UDim2.new(1, 0, 0, 16)
+	pickerTitle.BackgroundTransparency = 1
+	pickerTitle.Text = "Color Picker"
+	pickerTitle.TextXAlignment = Enum.TextXAlignment.Left
+	pickerTitle.TextColor3 = context.theme.TitleText
+	pickerTitle.TextSize = 12
+	pickerTitle.Font = Enum.Font.GothamBold
+	pickerTitle:SetAttribute("HyperVRole", "SectionTitle")
+	pickerTitle.Parent = pickerPopup
+
+	local pickerPreview = Instance.new("Frame")
+	pickerPreview.Size = UDim2.new(1, 0, 0, 22)
+	pickerPreview.BackgroundColor3 = Color3.new(1, 1, 1)
+	pickerPreview.BorderSizePixel = 0
+	pickerPreview.ZIndex = baseZIndex + 9
+	pickerPreview:SetAttribute("HyperVRole", "FieldInput")
+	pickerPreview.Parent = pickerPopup
+	context.toolkit:CreateCorner(pickerPreview, 6)
+	context.toolkit:CreateStroke(pickerPreview, context.theme.Border)
+
+	local svRow = Instance.new("Frame")
+	svRow.Size = UDim2.new(1, 0, 0, 110)
+	svRow.BackgroundTransparency = 1
+	svRow.Parent = pickerPopup
+
+	local saturationValue = Instance.new("Frame")
+	saturationValue.Name = "SV"
+	saturationValue.Size = UDim2.new(1, -20, 1, 0)
+	saturationValue.BackgroundColor3 = Color3.fromHSV(0, 1, 1)
+	saturationValue.BorderSizePixel = 0
+	saturationValue.ZIndex = baseZIndex + 9
+	saturationValue:SetAttribute("HyperVRole", "PickerSurface")
+	saturationValue.Parent = svRow
+	context.toolkit:CreateCorner(saturationValue, 8)
+
+	local whiteOverlay = Instance.new("Frame")
+	whiteOverlay.Size = UDim2.fromScale(1, 1)
+	whiteOverlay.BackgroundColor3 = Color3.new(1, 1, 1)
+	whiteOverlay.BorderSizePixel = 0
+	whiteOverlay.ZIndex = baseZIndex + 10
+	whiteOverlay.Parent = saturationValue
+	context.toolkit:CreateCorner(whiteOverlay, 8)
+	local whiteGradient = Instance.new("UIGradient")
+	whiteGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	whiteGradient.Rotation = 0
+	whiteGradient.Parent = whiteOverlay
+
+	local blackOverlay = Instance.new("Frame")
+	blackOverlay.Size = UDim2.fromScale(1, 1)
+	blackOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+	blackOverlay.BorderSizePixel = 0
+	blackOverlay.ZIndex = baseZIndex + 11
+	blackOverlay.Parent = saturationValue
+	context.toolkit:CreateCorner(blackOverlay, 8)
+	local blackGradient = Instance.new("UIGradient")
+	blackGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	blackGradient.Rotation = 90
+	blackGradient.Parent = blackOverlay
+
+	local svCursor = Instance.new("Frame")
+	svCursor.Size = UDim2.new(0, 12, 0, 12)
+	svCursor.AnchorPoint = Vector2.new(0.5, 0.5)
+	svCursor.BackgroundColor3 = Color3.new(1, 1, 1)
+	svCursor.BorderSizePixel = 0
+	svCursor.ZIndex = baseZIndex + 12
+	svCursor:SetAttribute("HyperVRole", "PickerCursor")
+	svCursor.Parent = saturationValue
+	context.toolkit:CreateCorner(svCursor, 6)
+	context.toolkit:CreateStroke(svCursor, Color3.new(0, 0, 0))
+
+	local hueBar = Instance.new("Frame")
+	hueBar.Name = "Hue"
+	hueBar.Size = UDim2.new(0, 12, 1, 0)
+	hueBar.Position = UDim2.new(1, -12, 0, 0)
+	hueBar.BackgroundColor3 = Color3.new(1, 1, 1)
+	hueBar.BorderSizePixel = 0
+	hueBar.ZIndex = baseZIndex + 9
+	hueBar:SetAttribute("HyperVRole", "PickerHue")
+	hueBar.Parent = svRow
+	context.toolkit:CreateCorner(hueBar, 6)
+	local hueGradient = Instance.new("UIGradient")
+	hueGradient.Rotation = 90
+	hueGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+		ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
+		ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+		ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
+		ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
+	})
+	hueGradient.Parent = hueBar
+
+	local hueCursor = Instance.new("Frame")
+	hueCursor.Size = UDim2.new(1, 4, 0, 4)
+	hueCursor.AnchorPoint = Vector2.new(0.5, 0.5)
+	hueCursor.Position = UDim2.new(0.5, 0, 0, 0)
+	hueCursor.BackgroundColor3 = Color3.new(1, 1, 1)
+	hueCursor.BorderSizePixel = 0
+	hueCursor.ZIndex = baseZIndex + 12
+	hueCursor:SetAttribute("HyperVRole", "PickerCursor")
+	hueCursor.Parent = hueBar
+	context.toolkit:CreateCorner(hueCursor, 2)
+	context.toolkit:CreateStroke(hueCursor, Color3.new(0, 0, 0))
+
+	local pickerRgbRow = Instance.new("Frame")
+	pickerRgbRow.Size = UDim2.new(1, 0, 0, 22)
+	pickerRgbRow.BackgroundTransparency = 1
+	pickerRgbRow.Parent = pickerPopup
+	local rgbLayout = Instance.new("UIListLayout")
+	rgbLayout.FillDirection = Enum.FillDirection.Horizontal
+	rgbLayout.Padding = UDim.new(0, 4)
+	rgbLayout.Parent = pickerRgbRow
+
+	local pickerRgbBoxes = {}
+	for _ = 1, 3 do
+		local input = Instance.new("TextBox")
+		input.Size = UDim2.new(0.333, -3, 1, 0)
+		input.BackgroundColor3 = context.theme.Second
+		input.BorderSizePixel = 0
+		input.TextColor3 = context.theme.Text
+		input.TextSize = 10
+		input.Font = Enum.Font.Gotham
+		input.ClearTextOnFocus = false
+		input:SetAttribute("HyperVRole", "FieldInput")
+		input.Parent = pickerRgbRow
+		context.toolkit:CreateCorner(input, 6)
+		context.toolkit:CreateStroke(input, context.theme.Border)
+		table.insert(pickerRgbBoxes, input)
+	end
+
 	local controlsPanel = Instance.new("ScrollingFrame")
 	controlsPanel.Name = "Controls"
 	controlsPanel.Size = UDim2.new(0, 230, 1, -56)
@@ -586,6 +704,13 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self.statusLabel = statusLabel
 	self.camera = camera
 	self.worldModel = worldModel
+	self._pickerPopup = pickerPopup
+	self._pickerPreview = pickerPreview
+	self._pickerSV = saturationValue
+	self._pickerSVCursor = svCursor
+	self._pickerHueBar = hueBar
+	self._pickerHueCursor = hueCursor
+	self._pickerRgbBoxes = pickerRgbBoxes
 	self.controlsPanel = controlsPanel
 	self._controlsPadding = controlsPadding
 	self._controlsLayout = controlsLayout
@@ -595,6 +720,85 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self._cancelButton = cancelButton
 	self._resetButton = resetButton
 	self._applyButton = applyButton
+
+	local function setPickerColor(value: Color3, emit: boolean)
+		self._pickerColor = value
+		local hue, saturation, brightness = value:ToHSV()
+		self._pickerHueValue = hue
+		self._pickerSaturation = saturation
+		self._pickerValue = brightness
+		self._pickerPreview.BackgroundColor3 = value
+		self._pickerSV.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+		self._pickerSVCursor.Position = UDim2.new(saturation, 0, 1 - brightness, 0)
+		self._pickerHueCursor.Position = UDim2.new(0.5, 0, hue, 0)
+		self._pickerRgbBoxes[1].Text = tostring(math.floor(value.R * 255 + 0.5))
+		self._pickerRgbBoxes[2].Text = tostring(math.floor(value.G * 255 + 0.5))
+		self._pickerRgbBoxes[3].Text = tostring(math.floor(value.B * 255 + 0.5))
+		if emit and self._pickerChange then
+			self._pickerChange(value)
+		end
+	end
+	self._setPickerColor = setPickerColor
+
+	local function hidePicker()
+		self._pickerPopup.Visible = false
+		self._pickerDragging = nil
+		self._pickerChange = nil
+	end
+	self._hideColorPicker = hidePicker
+
+	local function showPicker(anchor: GuiObject, value: Color3, onChanged: (Color3) -> ())
+		self._pickerChange = onChanged
+		self._pickerPopup.Visible = true
+		local relativeX = anchor.AbsolutePosition.X - self.root.AbsolutePosition.X - 96
+		local relativeY = anchor.AbsolutePosition.Y - self.root.AbsolutePosition.Y + anchor.AbsoluteSize.Y + 6
+		local maxX = math.max(0, self.root.AbsoluteSize.X - self._pickerPopup.AbsoluteSize.X)
+		local maxY = math.max(0, self.root.AbsoluteSize.Y - self._pickerPopup.AbsoluteSize.Y)
+		self._pickerPopup.Position = UDim2.new(0, math.clamp(relativeX, 0, maxX), 0, math.clamp(relativeY, 0, maxY))
+		setGuiZIndex(self._pickerPopup, baseZIndex + 8)
+		setPickerColor(value, false)
+	end
+	self._showColorPicker = showPicker
+
+	local function createPreviewColorInput(parent: Instance, titleText: string, onChanged: (Color3) -> ())
+		local row, controlHost = createRow(parent, context.theme, titleText, 36, nil, 88, 36)
+		local button = Instance.new("TextButton")
+		button.Size = UDim2.new(0, 28, 0, 22)
+		button.AnchorPoint = Vector2.new(1, 0.5)
+		button.Position = UDim2.new(1, 0, 0.5, 0)
+		button.BackgroundColor3 = Color3.new(1, 1, 1)
+		button.BorderSizePixel = 0
+		button.Text = ""
+		button.AutoButtonColor = false
+		button:SetAttribute("HyperVRole", "ColorSwatch")
+		button.Parent = controlHost
+		context.toolkit:CreateCorner(button, 6)
+		context.toolkit:CreateStroke(button, context.theme.Border)
+
+		local current = Color3.new(1, 1, 1)
+		button.MouseButton1Click:Connect(function()
+			if self._pickerPopup.Visible and self._pickerChange == onChanged then
+				hidePicker()
+				return
+			end
+			showPicker(button, current, function(nextColor)
+				current = nextColor
+				button.BackgroundColor3 = nextColor
+				onChanged(nextColor)
+			end)
+		end)
+
+		return {
+			setValue = function(_, value: Color3)
+				current = value
+				button.BackgroundColor3 = value
+				if self._pickerPopup.Visible and self._pickerChange == onChanged then
+					setPickerColor(value, false)
+				end
+			end,
+			button = button,
+		}
+	end
 
 	local cameraSection = createSection(controlsPanel, context.toolkit, context.theme, "Camera")
 	local transparencySection = createSection(controlsPanel, context.toolkit, context.theme, "Transparency")
@@ -668,19 +872,15 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 			callbacks.onPatch({ highlight = { enabled = value } })
 		end
 	)
-	self.controls.highlightFillColor = createColorInput(
+	self.controls.highlightFillColor = createPreviewColorInput(
 		highlightSection,
-		context.toolkit,
-		context.theme,
 		"Fill Color",
 		function(value)
 			callbacks.onPatch({ highlight = { fillColor = value } })
 		end
 	)
-	self.controls.highlightOutlineColor = createColorInput(
+	self.controls.highlightOutlineColor = createPreviewColorInput(
 		highlightSection,
-		context.toolkit,
-		context.theme,
 		"Outline Color",
 		function(value)
 			callbacks.onPatch({ highlight = { outlineColor = value } })
@@ -727,10 +927,8 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self.controls.espBoxEnabled = createToggle(espSection, context.toolkit, context.theme, "ESP Box", function(value)
 		callbacks.onPatch({ espBox = { enabled = value } })
 	end)
-	self.controls.espBoxColor = createColorInput(
+	self.controls.espBoxColor = createPreviewColorInput(
 		espSection,
-		context.toolkit,
-		context.theme,
 		"Box Color",
 		function(value)
 			callbacks.onPatch({ espBox = { color = value } })
@@ -769,10 +967,8 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 			callbacks.onPatch({ espInfo = { showHealth = value } })
 		end
 	)
-	self.controls.espInfoColor = createColorInput(
+	self.controls.espInfoColor = createPreviewColorInput(
 		espSection,
-		context.toolkit,
-		context.theme,
 		"Info Color",
 		function(value)
 			callbacks.onPatch({ espInfo = { textColor = value } })
@@ -781,10 +977,8 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self.controls.tracerEnabled = createToggle(espSection, context.toolkit, context.theme, "Tracer", function(value)
 		callbacks.onPatch({ tracer = { enabled = value } })
 	end)
-	self.controls.tracerColor = createColorInput(
+	self.controls.tracerColor = createPreviewColorInput(
 		espSection,
-		context.toolkit,
-		context.theme,
 		"Tracer Color",
 		function(value)
 			callbacks.onPatch({ tracer = { color = value } })
@@ -803,10 +997,8 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self.controls.trailEnabled = createToggle(effectsSection, context.toolkit, context.theme, "Trail", function(value)
 		callbacks.onPatch({ trail = { enabled = value } })
 	end)
-	self.controls.trailColor = createColorInput(
+	self.controls.trailColor = createPreviewColorInput(
 		effectsSection,
-		context.toolkit,
-		context.theme,
 		"Trail Color",
 		function(value)
 			callbacks.onPatch({ trail = { color = value } })
@@ -830,10 +1022,8 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 			callbacks.onPatch({ particles = { enabled = value } })
 		end
 	)
-	self.controls.particlesColor = createColorInput(
+	self.controls.particlesColor = createPreviewColorInput(
 		effectsSection,
-		context.toolkit,
-		context.theme,
 		"Particles Color",
 		function(value)
 			callbacks.onPatch({ particles = { color = value } })
@@ -875,10 +1065,8 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 			callbacks.onPatch({ forceField = { visible = value } })
 		end
 	)
-	self.controls.forceFieldColor = createColorInput(
+	self.controls.forceFieldColor = createPreviewColorInput(
 		effectsSection,
-		context.toolkit,
-		context.theme,
 		"FF Color",
 		function(value)
 			callbacks.onPatch({ forceField = { color = value } })
@@ -928,15 +1116,23 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 			callbacks.onPatch({ charms = { tintEnabled = value } })
 		end
 	)
-	self.controls.charmsTintColor = createColorInput(
+	self.controls.charmsTintColor = createPreviewColorInput(
 		charmsSection,
-		context.toolkit,
-		context.theme,
 		"Tint Color",
 		function(value)
 			callbacks.onPatch({ charms = { tintColor = value } })
 		end
 	)
+
+	local function emitPickerRgb()
+		local r = math.clamp(tonumber(pickerRgbBoxes[1].Text) or 255, 0, 255)
+		local g = math.clamp(tonumber(pickerRgbBoxes[2].Text) or 255, 0, 255)
+		local b = math.clamp(tonumber(pickerRgbBoxes[3].Text) or 255, 0, 255)
+		setPickerColor(Color3.fromRGB(r, g, b), true)
+	end
+	for _, input in ipairs(pickerRgbBoxes) do
+		input.FocusLost:Connect(emitPickerRgb)
+	end
 
 	cancelButton.MouseButton1Click:Connect(callbacks.onCancel)
 	resetButton.MouseButton1Click:Connect(callbacks.onReset)
@@ -999,6 +1195,64 @@ function CharacterPreviewView:handleInputChanged(input: InputObject)
 	for _, control in ipairs(self.sliderControls) do
 		control:handleMove(input)
 	end
+
+	if not self._pickerPopup.Visible or not self._pickerDragging then
+		return
+	end
+
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
+
+	if self._pickerDragging == "sv" then
+		local width = math.max(self._pickerSV.AbsoluteSize.X, 1)
+		local height = math.max(self._pickerSV.AbsoluteSize.Y, 1)
+		local saturation = math.clamp((input.Position.X - self._pickerSV.AbsolutePosition.X) / width, 0, 1)
+		local value = 1 - math.clamp((input.Position.Y - self._pickerSV.AbsolutePosition.Y) / height, 0, 1)
+		self._setPickerColor(Color3.fromHSV(self._pickerHueValue, saturation, value), true)
+	elseif self._pickerDragging == "hue" then
+		local height = math.max(self._pickerHueBar.AbsoluteSize.Y, 1)
+		local hue = math.clamp((input.Position.Y - self._pickerHueBar.AbsolutePosition.Y) / height, 0, 1)
+		self._setPickerColor(Color3.fromHSV(hue, self._pickerSaturation, self._pickerValue), true)
+	end
+end
+
+function CharacterPreviewView:handleInputBegan(input: InputObject)
+	if not self._pickerPopup.Visible then
+		return
+	end
+
+	if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
+
+	if isPointInsideGui(self._pickerSV, input.Position) then
+		self._pickerDragging = "sv"
+		local width = math.max(self._pickerSV.AbsoluteSize.X, 1)
+		local height = math.max(self._pickerSV.AbsoluteSize.Y, 1)
+		local saturation = math.clamp((input.Position.X - self._pickerSV.AbsolutePosition.X) / width, 0, 1)
+		local value = 1 - math.clamp((input.Position.Y - self._pickerSV.AbsolutePosition.Y) / height, 0, 1)
+		self._setPickerColor(Color3.fromHSV(self._pickerHueValue, saturation, value), true)
+		return
+	end
+
+	if isPointInsideGui(self._pickerHueBar, input.Position) then
+		self._pickerDragging = "hue"
+		local height = math.max(self._pickerHueBar.AbsoluteSize.Y, 1)
+		local hue = math.clamp((input.Position.Y - self._pickerHueBar.AbsolutePosition.Y) / height, 0, 1)
+		self._setPickerColor(Color3.fromHSV(hue, self._pickerSaturation, self._pickerValue), true)
+		return
+	end
+
+	if not isPointInsideGui(self._pickerPopup, input.Position) then
+		self:_hideColorPicker()
+	end
+end
+
+function CharacterPreviewView:handleInputEnded(input: InputObject)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		self._pickerDragging = nil
+	end
 end
 
 function CharacterPreviewView:setStatus(message: string?)
@@ -1040,6 +1294,11 @@ function CharacterPreviewView:applyTheme(theme)
 			if stroke then
 				stroke.Color = theme.Border
 			end
+		elseif role == "ColorSwatch" and descendant:IsA("TextButton") then
+			local stroke = descendant:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = theme.Border
+			end
 		elseif role == "AccentValue" and descendant:IsA("TextLabel") then
 			descendant.TextColor3 = theme.Accent
 		elseif role == "SliderTrack" and descendant:IsA("Frame") then
@@ -1068,6 +1327,15 @@ function CharacterPreviewView:applyTheme(theme)
 			if stroke then
 				stroke.Color = theme.Border
 			end
+		elseif role == "PickerPopup" and descendant:IsA("Frame") then
+			descendant.BackgroundColor3 = theme.Default
+			local stroke = descendant:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = theme.Border
+			end
+		elseif role == "PickerSurface" and descendant:IsA("Frame") then
+			local hue = self._pickerHueValue
+			descendant.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
 		end
 	end
 end
@@ -1121,6 +1389,7 @@ function CharacterPreviewView:close()
 end
 
 function CharacterPreviewView:dispose()
+	self:_hideColorPicker()
 	self.window:dispose()
 end
 

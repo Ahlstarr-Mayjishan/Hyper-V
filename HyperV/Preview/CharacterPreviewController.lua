@@ -297,6 +297,17 @@ function CharacterPreviewController.new(config, context)
 		end
 	end))
 
+	self._disposables:add(UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+		if gameProcessedEvent then
+			return
+		end
+		self._view:handleInputBegan(input)
+	end))
+
+	self._disposables:add(UserInputService.InputEnded:Connect(function(input)
+		self._view:handleInputEnded(input)
+	end))
+
 	self._disposables:add(RunService.RenderStepped:Connect(function(deltaTime)
 		self:_step(deltaTime)
 	end))
