@@ -1,6 +1,5 @@
 --!strict
 
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local ThemeTokens = require(script.Parent.Parent.Tokens.ThemeTokens)
@@ -10,23 +9,15 @@ local ElementToolkit = require(script.Parent.Parent.UI.ElementToolkit)
 local PresetRegistry = require(script.Parent.Parent.Registries.PresetRegistry)
 local CommandRegistry = require(script.Parent.Parent.Registries.CommandRegistry)
 local OverlayHost = require(script.Parent.Parent.Overlay.OverlayHost)
-local CommandPaletteController = require(script.Parent.Parent.Overlay.CommandPalette.CommandPaletteController)
-local ContextMenuController = require(script.Parent.Parent.Overlay.ContextMenuController)
-local ModalController = require(script.Parent.Parent.Overlay.ModalController)
 local DockRegistry = require(script.Parent.Parent.Windowing.DockRegistry)
-local DockPanelView = require(script.Parent.Parent.Windowing.DockPanelView)
-local DetachedWindowHandle = require(script.Parent.Parent.Windowing.DetachedWindowHandle)
-local WindowController = require(script.Parent.Parent.Windowing.WindowController)
-local CharacterPreviewController = require(script.Parent.Parent.Preview.CharacterPreviewController)
 local LegacyRendererFactory = require(script.Parent.Parent.Elements.LegacyRendererFactory)
-local ColorPickerController = require(script.Parent.Parent.Elements.ColorPickerController)
-local PresetManager = require(script.Parent.Parent.Elements.PresetManager)
-local BrainInspector = require(script.Parent.Parent.Brain.BrainInspector)
 local SystemBrain = require(script.Parent.Parent.Brain.SystemBrain)
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
 local InteractionAuthority = require(script.Parent.Parent.System.Authority.InteractionAuthority)
 local LayerAuthority = require(script.Parent.Parent.System.Authority.LayerAuthority)
 local ProtectionGate = require(script.Parent.Parent.System.Authority.ProtectionGate)
+local AppRuntime = require(script.Parent.AppRuntime)
+local AppFactory = require(script.Parent.AppFactory)
 
 -- Core systems
 local legacyRoot = resolveLegacyRoot(script)
@@ -35,46 +26,6 @@ local HyperVAPI = require(legacyRoot.core.API.RayfieldAPI)
 
 local App = {}
 App.__index = App
-
-local DEFAULT_WINDOW_MARGIN = 24
-local MIN_WINDOW_SIZE = Vector2.new(360, 260)
-local getViewportSize
-local SURFACE_PRIORITY = {
-	window = 10,
-	detached = 20,
-	palette = 40,
-	contextMenu = 45,
-	modal = 60,
-}
-
-local function computeWhitespaceScale(): number
-	local viewport = getViewportSize()
-	local shortestSide = math.min(viewport.X, viewport.Y)
-	if shortestSide <= 720 then
-		return 0.92
-	end
-
-	if shortestSide >= 1440 then
-		return 1.18
-	end
-
-	local alpha = (shortestSide - 720) / (1440 - 720)
-	return 0.92 + (0.26 * alpha)
-end
-
-local function createScreenGui(name: string): ScreenGui
-	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-	local existing = playerGui:FindFirstChild(name)
-	if existing and existing:IsA("ScreenGui") then
-		existing:Destroy()
-	end
-
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = name
-	screenGui.ResetOnSpawn = false
-	screenGui.Parent = playerGui
-	return screenGui
-end
 
 local function validatePreviewTarget(request)
 	if request == nil then
@@ -140,157 +91,12 @@ local function validateDockDetach(request)
 	return true, nil
 end
 
-function getViewportSize(): Vector2
-	local camera = workspace.CurrentCamera
-	if camera then
-		return camera.ViewportSize
-	end
-
-	return Vector2.new(1280, 720)
-end
-
-local function vectorFromSize(sizeValue: any, fallback: Vector2): Vector2
-	if typeof(sizeValue) == "Vector2" then
-		return sizeValue
-	end
-
-	if typeof(sizeValue) == "UDim2" then
-		return Vector2.new(sizeValue.X.Offset, sizeValue.Y.Offset)
-	end
-
-	return fallback
-end
-
-local function centeredPosition(size: Vector2): UDim2
-	return UDim2.new(0.5, math.floor(-size.X * 0.5), 0.5, math.floor(-size.Y * 0.5))
-end
-
-local function clampPosition(position: UDim2, scaledSize: Vector2, margin: number): UDim2
-	local viewport = getViewportSize()
-	local maxX = math.max(margin, viewport.X - scaledSize.X - margin)
-	local maxY = math.max(margin, viewport.Y - scaledSize.Y - margin)
-
-	return UDim2.new(
-		position.X.Scale,
-		math.clamp(position.X.Offset, margin, maxX),
-		position.Y.Scale,
-		math.clamp(position.Y.Offset, margin, maxY)
-	)
-end
-
-local function resolveResponsiveRect(
-	sizeValue: any,
-	positionValue: UDim2?,
-	fallbackSize: Vector2,
-	margin: number?
-): (Vector2, UDim2, number)
-	local baseSize = vectorFromSize(sizeValue, fallbackSize)
-	local viewport = getViewportSize()
-	local safeMargin = margin or DEFAULT_WINDOW_MARGIN
-	local availableWidth = math.max(MIN_WINDOW_SIZE.X, viewport.X - (safeMargin * 2))
-	local availableHeight = math.max(MIN_WINDOW_SIZE.Y, viewport.Y - (safeMargin * 2))
-	local scale = math.min(1, availableWidth / baseSize.X, availableHeight / baseSize.Y)
-	local scaledSize = Vector2.new(baseSize.X * scale, baseSize.Y * scale)
-	local resolvedPosition = clampPosition(positionValue or centeredPosition(scaledSize), scaledSize, safeMargin)
-
-	return baseSize, resolvedPosition, scale
-end
-
-local function resolveDefaultPreviewPosition(window, requestedSize: Vector2?): UDim2
-	local fallback = UDim2.new(0, 40, 0, 80)
-	if not window or not window.root then
-		return fallback
-	end
-
-	local root = window.root
-	local width = if requestedSize then requestedSize.X else 760
-	local height = if requestedSize then requestedSize.Y else 560
-	local gap = 24
-	local candidate = UDim2.new(
-		root.Position.X.Scale,
-		root.Position.X.Offset + root.AbsoluteSize.X + gap,
-		root.Position.Y.Scale,
-		root.Position.Y.Offset
-	)
-
-	local camera = workspace.CurrentCamera
-	if not camera then
-		return candidate
-	end
-
-	local viewport = camera.ViewportSize
-	if candidate.X.Offset + width > viewport.X then
-		return fallback
-	end
-
-	if candidate.Y.Offset + height > viewport.Y then
-		return UDim2.new(0, math.max(24, viewport.X - width - 24), 0, math.max(24, viewport.Y - height - 24))
-	end
-
-	return candidate
-end
-
-local function attachResponsiveWindow(handle, baseSize: Vector2, margin: number?): () -> ()
-	local frame = handle.view
-	local safeMargin = margin or DEFAULT_WINDOW_MARGIN
-	local uiScale = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-	uiScale.Parent = frame
-	handle._baseSize = baseSize
-
-	local applying = false
-	local viewportConnection = nil
-
-	local function update()
-		if applying or not frame.Parent then
-			return
-		end
-
-		applying = true
-		local targetSize = handle._baseSize or baseSize
-		local viewport = getViewportSize()
-		local availableWidth = math.max(MIN_WINDOW_SIZE.X, viewport.X - (safeMargin * 2))
-		local availableHeight = math.max(MIN_WINDOW_SIZE.Y, viewport.Y - (safeMargin * 2))
-		local scale = math.min(1, availableWidth / targetSize.X, availableHeight / targetSize.Y)
-		local scaledSize = Vector2.new(targetSize.X * scale, targetSize.Y * scale)
-		uiScale.Scale = scale
-		frame.Position = clampPosition(frame.Position, scaledSize, safeMargin)
-		applying = false
-	end
-
-	local cameraConnection = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		if viewportConnection then
-			viewportConnection:Disconnect()
-			viewportConnection = nil
-		end
-
-		local camera = workspace.CurrentCamera
-		if camera then
-			viewportConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(update)
-		end
-
-		update()
-	end)
-
-	if workspace.CurrentCamera then
-		viewportConnection = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(update)
-	end
-
-	update()
-
-	return function()
-		cameraConnection:Disconnect()
-		if viewportConnection then
-			viewportConnection:Disconnect()
-		end
-	end
-end
-
 function App.new(config)
 	local self = setmetatable({}, App)
 	self.theme = ThemeTokens.getTheme(config.Theme)
 	self.layout = LayoutSpecs.get(config.Layout)
 	self.toolkit = ElementToolkit.new()
-	self.screenGui = createScreenGui(config.Name or "HyperV")
+	self.screenGui = AppRuntime.createScreenGui(config.Name or "HyperV")
 	self.interactionAuthority = InteractionAuthority.new()
 	self.layerAuthority = LayerAuthority.new()
 	self.protectionGate = ProtectionGate.new()
@@ -318,7 +124,7 @@ function App.new(config)
 		app = self,
 		theme = self.theme,
 		layout = self.layout,
-		whitespaceScale = computeWhitespaceScale(),
+		whitespaceScale = AppRuntime.computeWhitespaceScale(),
 		toolkit = self.toolkit,
 		presetRegistry = self.presetRegistry,
 		commandRegistry = self.commandRegistry,
@@ -438,7 +244,7 @@ function App.new(config)
 	self._surfaceMaintenanceHistory = {}
 	local viewportConnection = nil
 	local function refreshWhitespace()
-		self._context.whitespaceScale = computeWhitespaceScale()
+		self._context.whitespaceScale = AppRuntime.computeWhitespaceScale()
 		local activeStylables = {}
 		for _, stylable in ipairs(self._stylables) do
 			if stylable and stylable.view and stylable.view.Parent then
@@ -692,275 +498,6 @@ function App:getAnimation()
 	return self.animation
 end
 
-function App:createWindow(config)
-	local nextConfig = table.clone(config or {})
-	local baseSize, resolvedPosition, _ = resolveResponsiveRect(
-		nextConfig.Size,
-		nextConfig.Position,
-		Vector2.new(900, 580),
-		nextConfig.Margin
-	)
-	nextConfig.Size = Vector2.new(baseSize.X, baseSize.Y)
-	nextConfig.Position = resolvedPosition
-
-	local window = WindowController.new(self, nextConfig)
-	window._responsiveCleanup = attachResponsiveWindow(window, baseSize, nextConfig.Margin)
-	self:_registerStylable(window)
-	self:_registerSurface(window, SURFACE_PRIORITY.window)
-	table.insert(self.windows, window)
-	self.currentWindow = window
-	return window
-end
-
-function App:createButton(config, parentOverride)
-	local parent = parentOverride or config.Parent or (self.currentWindow and self.currentWindow.contentFrame) or self.screenGui
-	local button = Instance.new("TextButton")
-	button.Name = config.Name or "Button"
-	button.Size = config.Size or UDim2.new(1, 0, 0, 34)
-	button.BackgroundColor3 = self.theme.Accent
-	button.BorderSizePixel = 0
-	button.Text = config.Text or "Button"
-	button.TextColor3 = Color3.new(1, 1, 1)
-	button.TextSize = 13
-	button.Font = Enum.Font.GothamBold
-	button.Parent = parent
-	self.toolkit:CreateCorner(button, 8)
-	button.MouseButton1Click:Connect(function()
-		if config.OnClick then
-			config.OnClick()
-		end
-	end)
-
-	return {
-		id = config.Name or "Button",
-		kind = "button",
-		title = config.Text or "Button",
-		view = button,
-		parentFrame = parent,
-		dispose = function(selfHandle)
-			selfHandle.view:Destroy()
-		end,
-		undock = function(selfHandle)
-			if selfHandle.parentFrame then
-				selfHandle.view.Parent = selfHandle.parentFrame
-			end
-		end,
-	}
-end
-
-function App:createLabel(config, parentOverride)
-	local parent = parentOverride or config.Parent or (self.currentWindow and self.currentWindow.contentFrame) or self.screenGui
-	local label = Instance.new("TextLabel")
-	label.Name = config.Name or "Label"
-	label.Size = config.Size or UDim2.new(1, 0, 0, 24)
-	label.BackgroundTransparency = 1
-	label.Text = config.Text or "Label"
-	label.TextColor3 = self.theme.Text
-	label.TextSize = config.TextSize or 13
-	label.Font = Enum.Font.Gotham
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.Parent = parent
-
-	return {
-		id = config.Name or "Label",
-		kind = "label",
-		title = label.Text,
-		view = label,
-		parentFrame = parent,
-		dispose = function(selfHandle)
-			selfHandle.view:Destroy()
-		end,
-	}
-end
-
-function App:createSection(config)
-	assert(self.currentWindow, "createSection requires an active window")
-	return self.currentWindow:createSection(config)
-end
-
-function App:createAccordionSection(config)
-	config.Collapsible = true
-	return self:createSection(config)
-end
-
-function App:createDockPanel(config)
-	local panel = DockPanelView.new({
-		Id = config.Id or config.Name,
-		Name = config.Name or "DockPanel",
-		Title = config.Title or config.Name or "Dock Panel",
-		Size = config.Size and UDim2.new(0, config.Size.X, 0, config.Size.Y) or UDim2.new(0, 240, 0, 220),
-		Position = config.Position or UDim2.new(1, -250, 0, 90),
-		Parent = config.Parent or self.screenGui,
-		Accept = config.Accept or "Both",
-	}, self._context)
-	self.dockRegistry:registerTarget(panel.id, panel)
-	return panel
-end
-
-function App:createDetachedWindow(config)
-	local baseSize, resolvedPosition, _ = resolveResponsiveRect(
-		config.Size,
-		config.Position,
-		Vector2.new(320, 220),
-		config.Margin
-	)
-
-	local handle = DetachedWindowHandle.new({
-		Id = config.Id or config.Name,
-		Name = config.Name or "DetachedWindow",
-		Title = config.Title,
-		Size = UDim2.new(0, baseSize.X, 0, baseSize.Y),
-		Position = resolvedPosition,
-		Parent = config.Parent or self.screenGui,
-		Content = config.Content,
-		MinSize = config.MinSize,
-		MaxSize = config.MaxSize,
-		OnCloseRequested = config.OnCloseRequested,
-	}, self._context)
-
-	handle._responsiveCleanup = attachResponsiveWindow(handle, baseSize, config.Margin)
-	if handle._surfaceRegistrationDisabled ~= true then
-		self:_registerSurface(handle, SURFACE_PRIORITY.detached)
-	end
-	return self:_registerStylable(handle)
-end
-
-function App:createCommandPalette(config)
-	local actions = {}
-	for index, action in ipairs(config.Actions or self.commandRegistry:list()) do
-		table.insert(actions, {
-			id = action.id or ("action_" .. index),
-			title = action.Title or action.title or ("Action " .. index),
-			description = action.Description or action.description,
-			callback = action.Callback or action.callback,
-		})
-	end
-	local palette = CommandPaletteController.new({
-		Hotkey = config.Hotkey,
-		Actions = actions,
-		Parent = config.Parent or self.screenGui,
-	}, self._context)
-	self:_registerSurface(palette, SURFACE_PRIORITY.palette)
-	return palette
-end
-
-function App:createModal(config)
-	local modal = ModalController.new(config or {}, self._context)
-	self:_registerSurface(modal, SURFACE_PRIORITY.modal)
-	return modal
-end
-
-function App:createContextMenu(config)
-	local menu = ContextMenuController.new(config or {}, self._context)
-	self:_registerSurface(menu, SURFACE_PRIORITY.contextMenu)
-	return menu
-end
-
-function App:createBrainInspector()
-	return BrainInspector.new(self)
-end
-
-function App:createNumberInput(config)
-	return self.legacyRendererFactory:createNumberInput(config)
-end
-
-function App:createRangeSlider(config)
-	return self.legacyRendererFactory:createRangeSlider(config)
-end
-
-function App:createMultiSelectDropdown(config)
-	return self.legacyRendererFactory:createMultiSelectDropdown(config)
-end
-
-function App:createCodeBlock(config)
-	return self.legacyRendererFactory:createCodeBlock(config)
-end
-
-function App:createColorPicker(config)
-	local picker = ColorPickerController.new(config, self._context)
-	self:_registerStylable(picker)
-	return picker
-end
-
-function App:createSubTabs(config, parentOverride)
-	local nextConfig = table.clone(config)
-	nextConfig.Parent = parentOverride or config.Parent
-	return self.legacyRendererFactory:createSubTabs(nextConfig)
-end
-
-function App:createTreeView(config)
-	return self.legacyRendererFactory:createTreeView(config)
-end
-
-function App:createVirtualList(config)
-	return self.legacyRendererFactory:createVirtualList(config)
-end
-
-function App:createPresetManager(config)
-	return PresetManager.new(config, self._context)
-end
-
-function App:createCharacterPreview(config)
-	local nextConfig = table.clone(config or {})
-	local previewSize = vectorFromSize(nextConfig.Size, Vector2.new(760, 560))
-	nextConfig.Position = nextConfig.Position or resolveDefaultPreviewPosition(self.currentWindow, previewSize)
-	nextConfig.Parent = nextConfig.Parent or self.screenGui
-
-	local preview = CharacterPreviewController.new(nextConfig, {
-		app = self,
-		theme = self.theme,
-		layout = self.layout,
-		toolkit = self.toolkit,
-		presetRegistry = self.presetRegistry,
-		commandRegistry = self.commandRegistry,
-		dockRegistry = self.dockRegistry,
-		interactionAuthority = self.interactionAuthority,
-		layerAuthority = self.layerAuthority,
-		protectionGate = self.protectionGate,
-		brain = self.brain,
-		gc = self.gc,
-		api = self.api,
-		animation = nil :: any,
-		defaultPreviewPosition = nextConfig.Position,
-	})
-
-	self:_registerStylable(preview)
-	self:_registerSurface(preview, SURFACE_PRIORITY.detached)
-	self.presetRegistry:register(preview)
-	return preview
-end
-
-function App:registerCommand(command)
-	self.commandRegistry:register({
-		id = command.id or command.Name or command.Title,
-		title = command.title or command.Title,
-		description = command.description or command.Description,
-		callback = command.callback or command.Callback,
-	})
-end
-
-function App:notify(config)
-	return self.overlayHost:notify(config)
-end
-
-function App:notifyInfo(title, content, duration)
-	return self:notify({
-		Title = title,
-		Content = content,
-		Type = "info",
-		Duration = duration or 3,
-	})
-end
-
-function App:notifySuccess(title, content, duration)
-	return self:notify({
-		Title = title,
-		Content = content,
-		Type = "success",
-		Duration = duration or 3,
-	})
-end
-
 function App:text()
 	return Utf8Text
 end
@@ -998,5 +535,31 @@ function App:dispose()
 	self.windows = {}
 	self.currentWindow = nil
 end
+
+App.createWindow = AppFactory.createWindow
+App.createButton = AppFactory.createButton
+App.createLabel = AppFactory.createLabel
+App.createSection = AppFactory.createSection
+App.createAccordionSection = AppFactory.createAccordionSection
+App.createDockPanel = AppFactory.createDockPanel
+App.createDetachedWindow = AppFactory.createDetachedWindow
+App.createCommandPalette = AppFactory.createCommandPalette
+App.createModal = AppFactory.createModal
+App.createContextMenu = AppFactory.createContextMenu
+App.createBrainInspector = AppFactory.createBrainInspector
+App.createNumberInput = AppFactory.createNumberInput
+App.createRangeSlider = AppFactory.createRangeSlider
+App.createMultiSelectDropdown = AppFactory.createMultiSelectDropdown
+App.createCodeBlock = AppFactory.createCodeBlock
+App.createColorPicker = AppFactory.createColorPicker
+App.createSubTabs = AppFactory.createSubTabs
+App.createTreeView = AppFactory.createTreeView
+App.createVirtualList = AppFactory.createVirtualList
+App.createPresetManager = AppFactory.createPresetManager
+App.createCharacterPreview = AppFactory.createCharacterPreview
+App.registerCommand = AppFactory.registerCommand
+App.notify = AppFactory.notify
+App.notifyInfo = AppFactory.notifyInfo
+App.notifySuccess = AppFactory.notifySuccess
 
 return App

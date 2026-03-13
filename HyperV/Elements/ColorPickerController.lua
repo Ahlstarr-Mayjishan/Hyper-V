@@ -363,7 +363,6 @@ function ColorPickerController:handleInputEnded(input: InputObject)
 end
 
 function ColorPickerController:applyTheme(theme)
-	self._context.theme = theme
 	self.view.BackgroundColor3 = theme.Default
 	local stroke = self.view:FindFirstChildOfClass("UIStroke")
 	if stroke then
