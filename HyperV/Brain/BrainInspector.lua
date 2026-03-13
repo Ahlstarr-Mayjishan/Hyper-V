@@ -57,6 +57,7 @@ end
 local function formatState(app, brain)
 	local snapshot = brain:getStateSnapshot()
 	local authority = brain:getAuthoritySnapshot()
+	local cleanupLog = app and app._surfaceMaintenanceLog or nil
 	local lines = {
 		"Focused Surface: " .. tostring(snapshot.focusedSurfaceId or "none"),
 		"Active Modal: " .. tostring(snapshot.activeModalId or "none"),
@@ -67,7 +68,7 @@ local function formatState(app, brain)
 	local surfaceCount = 0
 	for id, surface in pairs(snapshot.surfaces) do
 		surfaceCount += 1
-		table.insert(lines, string.format("- %s [%s]", id, tostring(surface.kind)))
+		table.insert(lines, string.format("- %s [%s] visible=%s", id, tostring(surface.kind), tostring(surface.visible)))
 	end
 
 	if surfaceCount == 0 then
@@ -139,6 +140,22 @@ local function formatState(app, brain)
 				table.insert(lines, "- handle-only: " .. id)
 			end
 		end
+
+		table.insert(lines, "")
+		table.insert(lines, "Cleanup Activity:")
+		if cleanupLog then
+			table.insert(lines, string.format("- lastRunAt: %.2f", cleanupLog.lastRunAt or 0))
+			table.insert(lines, string.format("- handleOnlyRemoved: %d", cleanupLog.handleOnlyRemoved or 0))
+			table.insert(lines, string.format("- brainOnlyRemoved: %d", cleanupLog.brainOnlyRemoved or 0))
+		else
+			table.insert(lines, "- none")
+		end
+	end
+
+	if snapshot.activeModalId then
+		table.insert(lines, "")
+		table.insert(lines, "Policy Conflicts:")
+		table.insert(lines, "- modal blocks: surface.activate, surface.open, preview.*, dock.*")
 	end
 
 	return table.concat(lines, "\n")

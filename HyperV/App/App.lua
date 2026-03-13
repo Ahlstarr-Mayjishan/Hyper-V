@@ -429,6 +429,11 @@ function App.new(config)
 	self._surfaceHandles = {}
 	self._stylables = {}
 	self._surfaceMaintenanceAccumulator = 0
+	self._surfaceMaintenanceLog = {
+		lastRunAt = 0,
+		handleOnlyRemoved = 0,
+		brainOnlyRemoved = 0,
+	}
 	local viewportConnection = nil
 	local function refreshWhitespace()
 		self._context.whitespaceScale = computeWhitespaceScale()
@@ -538,8 +543,10 @@ function App:_cleanupStaleSurfaces()
 	end
 
 	local snapshot = self.brain:getStateSnapshot()
+	local staleBrainOnlyCount = 0
 	for id in pairs(snapshot.surfaces) do
 		if self._surfaceHandles[id] == nil then
+			staleBrainOnlyCount += 1
 			self:_dispatchIntent({
 				type = "surface.unregister",
 				sourceId = id,
@@ -547,6 +554,12 @@ function App:_cleanupStaleSurfaces()
 			})
 		end
 	end
+
+	self._surfaceMaintenanceLog = {
+		lastRunAt = os.clock(),
+		handleOnlyRemoved = #staleHandleIds,
+		brainOnlyRemoved = staleBrainOnlyCount,
+	}
 end
 
 function App:_registerStylable(stylable)
@@ -590,6 +603,7 @@ function App:_registerSurface(surface, priority: number)
 		kind = surface.kind or "surface",
 		title = surface.title,
 		priority = priority,
+		visible = if surface.view then surface.view.Visible else false,
 	})
 
 	if surface.autoActivate ~= false then
@@ -795,7 +809,9 @@ function App:createDetachedWindow(config)
 	}, self._context)
 
 	handle._responsiveCleanup = attachResponsiveWindow(handle, baseSize, config.Margin)
-	self:_registerSurface(handle, SURFACE_PRIORITY.detached)
+	if handle._surfaceRegistrationDisabled ~= true then
+		self:_registerSurface(handle, SURFACE_PRIORITY.detached)
+	end
 	return self:_registerStylable(handle)
 end
 

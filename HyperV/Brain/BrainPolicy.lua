@@ -34,6 +34,7 @@ function BrainPolicy.evaluate(stateSnapshot, intent)
 				kind = intent.kind or "surface",
 				title = intent.title,
 				priority = intent.priority or 0,
+				visible = intent.visible,
 			}),
 		}
 	end
