@@ -20,6 +20,7 @@ function DetachedWindowHandle.new(config, context)
 	self._minSize = config.MinSize or Vector2.new(420, 320)
 	self._maxSize = config.MaxSize or Vector2.new(1440, 1040)
 	self._dockMenuClaimId = self.id .. ":dockMenu"
+	self._dockMenuSurfaceId = self.id .. ":dockMenuSurface"
 
 	local legacy = LegacyDetachedWindow.new({
 		Name = self.id,
@@ -111,15 +112,41 @@ function DetachedWindowHandle.new(config, context)
 	end)
 
 	if self._legacy.DockMenu then
-		self._legacy.DockMenu:GetPropertyChangedSignal("Visible"):Connect(function()
-			if self._legacy.DockMenu.Visible then
+		self._dockMenuSurface = {
+			id = self._dockMenuSurfaceId,
+			kind = "dockMenu",
+			title = self.title .. " Dock Menu",
+			view = self._legacy.DockMenu,
+			autoActivate = false,
+			_activateRuntime = function()
 				self._context.interactionAuthority:tryAcquire("dockMenu", {
 					id = self._dockMenuClaimId,
 					priority = 30,
 					allowSteal = true,
 				})
-				self:activate()
+				self._context.layerAuthority:bringToFront(self._dockMenuSurfaceId)
+			end,
+			applyLayer = function(_, baseZIndex)
+				LayerAuthority.applyGuiTreeZIndex(self._legacy.DockMenu, baseZIndex)
+			end,
+		}
+		self._legacy.DockMenu:GetPropertyChangedSignal("Visible"):Connect(function()
+			if self._legacy.DockMenu.Visible then
+				if self._context.app and self._context.app._registerSurface then
+					self._context.app:_registerSurface(self._dockMenuSurface, 30)
+					self._context.app:requestSurfaceActivation(self._dockMenuSurface, 30)
+				else
+					self._context.interactionAuthority:tryAcquire("dockMenu", {
+						id = self._dockMenuClaimId,
+						priority = 30,
+						allowSteal = true,
+					})
+					self:activate()
+				end
 			else
+				if self._context.app and self._context.app.unregisterSurface then
+					self._context.app:unregisterSurface(self._dockMenuSurfaceId)
+				end
 				self._context.interactionAuthority:release("dockMenu", self._dockMenuClaimId)
 			end
 		end)
@@ -234,6 +261,9 @@ end
 
 function DetachedWindowHandle:close()
 	self.view.Visible = false
+	if self._context.app and self._context.app.unregisterSurface then
+		self._context.app:unregisterSurface(self._dockMenuSurfaceId)
+	end
 	self._context.interactionAuthority:release("dockMenu", self._dockMenuClaimId)
 	self._context.interactionAuthority:releaseFocus(self.id)
 end
@@ -241,6 +271,7 @@ end
 function DetachedWindowHandle:dispose()
 	if self._context.app and self._context.app.unregisterSurface then
 		self._context.app:unregisterSurface(self.id)
+		self._context.app:unregisterSurface(self._dockMenuSurfaceId)
 	end
 	if self._responsiveCleanup then
 		self._responsiveCleanup()

@@ -18,6 +18,7 @@ local WindowController = require(script.Parent.Parent.Windowing.WindowController
 local CharacterPreviewController = require(script.Parent.Parent.Preview.CharacterPreviewController)
 local LegacyRendererFactory = require(script.Parent.Parent.Elements.LegacyRendererFactory)
 local PresetManager = require(script.Parent.Parent.Elements.PresetManager)
+local BrainInspector = require(script.Parent.Parent.Brain.BrainInspector)
 local SystemBrain = require(script.Parent.Parent.Brain.SystemBrain)
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
 local InteractionAuthority = require(script.Parent.Parent.System.Authority.InteractionAuthority)
@@ -296,6 +297,7 @@ function App.new(config)
 	self.dockRegistry = DockRegistry.new(self.protectionGate, self.brain)
 	self.text = Utf8Text
 	self.overlayHost = OverlayHost.new(self.screenGui, self.theme, self.toolkit, {
+		app = self,
 		layerAuthority = self.layerAuthority,
 		interactionAuthority = self.interactionAuthority,
 	})
@@ -400,6 +402,7 @@ function App.new(config)
 		return nil
 	end)
 	self.windows = {}
+	self._surfaceHandles = {}
 	self._stylables = {}
 	local viewportConnection = nil
 	local function refreshWhitespace()
@@ -458,6 +461,13 @@ function App:requestSurfaceActivation(surface, priority: number?)
 end
 
 function App:unregisterSurface(surfaceId: string)
+	local surface = self._surfaceHandles[surfaceId]
+	if surface and surface._layerCleanup then
+		surface._layerCleanup()
+		surface._layerCleanup = nil
+	end
+	self._surfaceHandles[surfaceId] = nil
+
 	return self:_dispatchIntent({
 		type = "surface.unregister",
 		sourceId = surfaceId,
@@ -482,6 +492,8 @@ function App:_registerSurface(surface, priority: number)
 		surface.view:SetAttribute("HyperVSurfaceId", surface.id)
 		surface.view:SetAttribute("HyperVSurfacePriority", priority)
 	end
+
+	self._surfaceHandles[surface.id] = surface
 
 	if surface._layerCleanup then
 		surface._layerCleanup()
@@ -734,6 +746,10 @@ function App:createModal(config)
 	local modal = ModalController.new(config or {}, self._context)
 	self:_registerSurface(modal, SURFACE_PRIORITY.modal)
 	return modal
+end
+
+function App:createBrainInspector()
+	return BrainInspector.new(self)
 end
 
 function App:createNumberInput(config)

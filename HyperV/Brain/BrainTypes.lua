@@ -1,6 +1,13 @@
 --!strict
 
-export type SurfaceKind = "window" | "modal" | "commandPalette" | "characterPreview" | "surface"
+export type SurfaceKind =
+	"window"
+	| "modal"
+	| "commandPalette"
+	| "characterPreview"
+	| "notification"
+	| "dockMenu"
+	| "surface"
 
 export type IntentType =
 	"surface.register"

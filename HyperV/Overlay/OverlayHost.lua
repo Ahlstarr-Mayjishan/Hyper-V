@@ -29,7 +29,9 @@ end
 function OverlayHost:notify(config)
 	local result = self._notification:Notify(config)
 	self:_registerNotificationSurface()
-	if self._systems.layerAuthority and self._notificationSurface then
+	if self._systems.app and self._notificationSurface then
+		self._systems.app:requestSurfaceActivation(self._notificationSurface, 50)
+	elseif self._systems.layerAuthority and self._notificationSurface then
 		self._systems.layerAuthority:bringToFront(self._notificationSurface.id)
 	end
 	return result
@@ -56,15 +58,24 @@ function OverlayHost:_registerNotificationSurface()
 
 	local surface = {
 		id = "NotificationOverlay",
+		kind = "notification",
+		title = "Notifications",
 		view = container,
 		autoActivate = false,
+		_activateRuntime = function()
+			if self._systems.layerAuthority then
+				self._systems.layerAuthority:bringToFront("NotificationOverlay")
+			end
+		end,
 		applyLayer = function(_, baseZIndex)
 			LayerAuthority.applyGuiTreeZIndex(container, baseZIndex)
 		end,
 	}
 	self._notificationSurface = surface
 
-	if self._systems.layerAuthority then
+	if self._systems.app and self._systems.app._registerSurface then
+		self._systems.app:_registerSurface(surface, 50)
+	elseif self._systems.layerAuthority then
 		surface._layerCleanup = self._systems.layerAuthority:registerSurface(surface.id, 50, function(baseZIndex)
 			surface:applyLayer(baseZIndex)
 		end)
