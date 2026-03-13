@@ -20,6 +20,7 @@ function WindowController.new(app, config)
 	self._minSize = config.MinSize or Vector2.new(720, 460)
 	self._maxSize = config.MaxSize or Vector2.new(1600, 1100)
 	self._surfacePriority = 10
+	self._isSplixStyle = self.layout.Name == "Splix"
 
 	local size = if typeof(config.Size) == "Vector2"
 		then UDim2.new(0, config.Size.X, 0, config.Size.Y)
@@ -27,22 +28,131 @@ function WindowController.new(app, config)
 		then config.Size
 		else UDim2.new(0, 900, 0, 580)
 
+	-- Splix style: 3-layer border (outline → inline → frame)
+	if self._isSplixStyle then
+		self:_createSplixWindow(size, config)
+	else
+		self:_createDefaultWindow(size, config)
+	end
+
+	return self
+end
+
+function WindowController:_createSplixWindow(size: UDim2, config)
+	-- Layer 0: Outline (outermost, black)
+	local outline = Instance.new("Frame")
+	outline.Name = "SplixOutline"
+	outline.Size = size + UDim2.new(0, 2, 0, 2)
+	outline.Position = (config.Position or UDim2.new(0.5, -450, 0.5, -290)) - UDim2.new(0, 1, 0, 1)
+	outline.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- outline color
+	outline.BorderSizePixel = 0
+	outline.Parent = self.app.screenGui
+
+	-- Layer 1: Inline (middle layer, inline color)
+	local inline = Instance.new("Frame")
+	inline.Name = "SplixInline"
+	inline.Size = size + UDim2.new(0, 0, 0, 0)
+	inline.Position = UDim2.new(0, 1, 0, 1)
+	inline.BackgroundColor3 = self.theme.Second -- inline color
+	inline.BorderSizePixel = 0
+	inline.Parent = outline
+
+	-- Layer 2: Main frame (innermost)
+	local root = Instance.new("Frame")
+	root.Name = self.id
+	root.Size = size
+	root.Position = UDim2.new(0, 0, 0, 0)
+	root.BackgroundColor3 = self.theme.Main -- dark_contrast
+	root.BorderSizePixel = 0
+	root.Parent = inline
+
+	-- Title bar (very compact)
+	local titleBar = Instance.new("Frame")
+	titleBar.Size = UDim2.new(1, 0, 0, self.layout.TitleBarHeight)
+	titleBar.BackgroundColor3 = self.theme.Default
+	titleBar.BorderSizePixel = 0
+	titleBar.Parent = root
+
+	-- Title text - left aligned, no extra padding
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -20, 1, 0)
+	title.Position = UDim2.new(0, 6, 0, 0)
+	title.BackgroundTransparency = 1
+	title.Text = self.title
+	title.TextColor3 = self.theme.TitleText
+	title.TextSize = self.layout.TitleTextSize
+	title.Font = Enum.Font.GothamBold
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Parent = titleBar
+
+	-- Close button - minimal
+	local closeButton = Instance.new("TextButton")
+	closeButton.Size = UDim2.new(0, 16, 0, 16)
+	closeButton.Position = UDim2.new(1, -20, 0.5, -8)
+	closeButton.BackgroundColor3 = self.theme.Second
+	closeButton.BorderSizePixel = 0
+	closeButton.Text = "x"
+	closeButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+	closeButton.TextSize = 10
+	closeButton.Font = Enum.Font.GothamBold
+	closeButton.Parent = titleBar
+
+	-- Tab bar
+	local tabBar = Instance.new("Frame")
+	tabBar.Size = UDim2.new(1, -8, 0, self.layout.TabBarHeight)
+	tabBar.Position = UDim2.new(0, 4, 0, self.layout.TitleBarHeight + 2)
+	tabBar.BackgroundTransparency = 1
+	tabBar.Parent = root
+
+	local tabLayout = Instance.new("UIListLayout")
+	tabLayout.FillDirection = Enum.FillDirection.Horizontal
+	tabLayout.Padding = UDim.new(0, 2)
+	tabLayout.Parent = tabBar
+
+	-- Content area
+	local content = Instance.new("Frame")
+	content.Size = UDim2.new(1, -8, 1, -(self.layout.TitleBarHeight + self.layout.TabBarHeight + 10))
+	content.Position = UDim2.new(0, 4, 0, self.layout.TitleBarHeight + self.layout.TabBarHeight + 6)
+	content.BackgroundTransparency = 1
+	content.Parent = root
+
+	-- Store references
+	self.view = outline
+	self.root = root
+	self._splixOutline = outline
+	self._splixInline = inline
+	self.contentFrame = content
+	self._titleBar = titleBar
+	self._titleLabel = title
+	self._tabBar = tabBar
+	self._tabLayout = tabLayout
+	self._closeButton = closeButton
+	self.parentFrame = self.app.screenGui
+
+	-- Drag support (minimal)
+	self._dragCleanup = self.app.toolkit:MakeDraggable(outline, titleBar)
+
+	-- Setup close
+	closeButton.MouseButton1Click:Connect(function()
+		self:dispose()
+	end)
+end
+
+function WindowController:_createDefaultWindow(size: UDim2, config)
 	local root = Instance.new("Frame")
 	root.Name = self.id
 	root.Size = size
 	root.Position = config.Position or UDim2.new(0.5, -450, 0.5, -290)
 	root.BackgroundColor3 = self.theme.Main
 	root.BorderSizePixel = 0
-	root.Parent = app.screenGui
-	app.toolkit:CreateCorner(root, self.layout.WindowCorner)
-	app.toolkit:CreateStroke(root, self.theme.Border)
+	root.Parent = self.app.screenGui
 
 	local titleBar = Instance.new("Frame")
 	titleBar.Size = UDim2.new(1, 0, 0, self.layout.TitleBarHeight)
 	titleBar.BackgroundColor3 = self.theme.Default
 	titleBar.BorderSizePixel = 0
 	titleBar.Parent = root
-	app.toolkit:CreateCorner(titleBar, self.layout.WindowCorner)
+	self.app.toolkit:CreateCorner(titleBar, self.layout.WindowCorner)
 
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.new(1, -20, 1, 0)
@@ -65,7 +175,7 @@ function WindowController.new(app, config)
 	closeButton.TextSize = 11
 	closeButton.Font = Enum.Font.GothamBold
 	closeButton.Parent = titleBar
-	app.toolkit:CreateCorner(closeButton, 6)
+	self.app.toolkit:CreateCorner(closeButton, 6)
 
 	local tabBar = Instance.new("Frame")
 	tabBar.Size = UDim2.new(1, -(self.layout.ContentInset * 2), 0, self.layout.TabBarHeight)
@@ -111,7 +221,7 @@ function WindowController.new(app, config)
 	resizeCorner.BorderSizePixel = 0
 	resizeCorner.Active = true
 	resizeCorner.Parent = root
-	app.toolkit:CreateCorner(resizeCorner, 6)
+	self.app.toolkit:CreateCorner(resizeCorner, 6)
 
 	self.view = root
 	self.root = root
@@ -122,21 +232,21 @@ function WindowController.new(app, config)
 	self._tabLayout = tabLayout
 	self._closeButton = closeButton
 	self._resizeCorner = resizeCorner
-	self.parentFrame = app.screenGui
+	self.parentFrame = self.app.screenGui
 	self._dragCleanup = DragController.attach(root, titleBar, {
-		authority = app:getInteractionAuthority(),
+		authority = self.app:getInteractionAuthority(),
 		claimantId = self.id,
 		interactionPriority = self._surfacePriority,
 		onDragStart = function()
 			self:activate()
 		end,
 	})
-	self._resizeCleanup = app.toolkit:MakeResizable(root, {
+	self._resizeCleanup = self.app.toolkit:MakeResizable(root, {
 		corner = resizeCorner,
 		right = resizeRight,
 		bottom = resizeBottom,
 	}, {
-		authority = app:getInteractionAuthority(),
+		authority = self.app:getInteractionAuthority(),
 		claimantId = self.id,
 		interactionPriority = self._surfacePriority,
 		minSize = self._minSize,
@@ -196,12 +306,24 @@ end
 function WindowController:applyTheme(theme, layout)
 	self.theme = theme or self.theme
 	self.layout = layout or self.layout
-	self.root.BackgroundColor3 = self.theme.Main
-	self._titleBar.BackgroundColor3 = self.theme.Default
-	self._titleLabel.TextColor3 = self.theme.TitleText
-	self._closeButton.BackgroundColor3 = self.theme.Second
-	if self._resizeCorner then
-		self._resizeCorner.BackgroundColor3 = self.theme.Second
+
+	if self._isSplixStyle and self._splixOutline and self._splixInline then
+		-- Splix style theming (3-layer border)
+		self._splixOutline.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- outline (always black)
+		self._splixInline.BackgroundColor3 = self.theme.Second -- inline
+		self.root.BackgroundColor3 = self.theme.Main -- dark_contrast
+		self._titleBar.BackgroundColor3 = self.theme.Default
+		self._titleLabel.TextColor3 = self.theme.TitleText
+		self._closeButton.BackgroundColor3 = self.theme.Second
+	else
+		-- Default style theming
+		self.root.BackgroundColor3 = self.theme.Main
+		self._titleBar.BackgroundColor3 = self.theme.Default
+		self._titleLabel.TextColor3 = self.theme.TitleText
+		self._closeButton.BackgroundColor3 = self.theme.Second
+		if self._resizeCorner then
+			self._resizeCorner.BackgroundColor3 = self.theme.Second
+		end
 	end
 
 	for tabKey, tab in pairs(self.tabs) do
@@ -213,6 +335,34 @@ end
 
 function WindowController:applyWhitespace(scale)
 	local spacingScale = scale or 1
+
+	-- Splix style: very compact
+	if self._isSplixStyle then
+		local inset = math.floor(self.layout.ContentInset * spacingScale + 0.5)
+		local tabGap = math.floor(2 * spacingScale + 0.5)
+
+		-- Title bar: minimal padding
+		self._titleLabel.Position = UDim2.new(0, 4, 0, 0)
+		self._titleLabel.Size = UDim2.new(1, -30, 1, 0)
+		self._closeButton.Size = UDim2.new(0, 16, 0, 16)
+		self._closeButton.Position = UDim2.new(1, -18, 0.5, -8)
+
+		-- Tab bar: compact
+		self._tabBar.Size = UDim2.new(1, -(inset * 2), 0, self.layout.TabBarHeight)
+		self._tabBar.Position = UDim2.new(0, inset, 0, self.layout.TitleBarHeight + 2)
+		self._tabLayout.Padding = UDim.new(0, tabGap)
+
+		-- Content: minimal inset
+		self.contentFrame.Size = UDim2.new(1, -(inset * 2), 1, -(self.layout.TitleBarHeight + self.layout.TabBarHeight + 6))
+		self.contentFrame.Position = UDim2.new(0, inset, 0, self.layout.TitleBarHeight + self.layout.TabBarHeight + 4)
+
+		for _, tab in pairs(self.tabs) do
+			tab.button.Size = UDim2.new(0, math.floor(self.layout.TabButtonWidth * spacingScale + 0.5), 0, self.layout.TabButtonHeight)
+		end
+		return
+	end
+
+	-- Default style spacing
 	local inset = math.floor(self.layout.ContentInset * spacingScale + 0.5)
 	local tabGap = math.floor(6 * spacingScale + 0.5)
 	local titlePadding = math.floor(12 * spacingScale + 0.5)
