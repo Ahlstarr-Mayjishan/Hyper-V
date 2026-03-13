@@ -14,6 +14,10 @@ local MODAL_BLOCKED_INTENTS = {
 	["dock.detach"] = true,
 }
 
+local function deny(policyCode: string, message: string)
+	return false, string.format("policy.%s: %s", policyCode, message), nil
+end
+
 local function makeCommand(commandType: string, payload: any)
 	return {
 		type = commandType,
@@ -21,10 +25,31 @@ local function makeCommand(commandType: string, payload: any)
 	}
 end
 
+local function getIntentKind(intent)
+	if intent.kind then
+		return intent.kind
+	end
+	if intent.surface and intent.surface.kind then
+		return intent.surface.kind
+	end
+	return nil
+end
+
+local function collectVisibleSurfaceIdsByKind(stateSnapshot, kind: string, excludeId: string?)
+	local ids = {}
+	for id, surface in pairs(stateSnapshot.surfaces) do
+		if id ~= excludeId and surface.kind == kind and surface.visible == true then
+			table.insert(ids, id)
+		end
+	end
+	table.sort(ids)
+	return ids
+end
+
 function BrainPolicy.evaluate(stateSnapshot, intent)
 	local activeModalId = stateSnapshot.activeModalId
 	if activeModalId and MODAL_BLOCKED_INTENTS[intent.type] and intent.sourceId ~= activeModalId then
-		return false, "Blocked by active modal", nil
+		return deny("activeModal", "Blocked by active modal")
 	end
 
 	if intent.type == "surface.register" then
@@ -61,16 +86,30 @@ function BrainPolicy.evaluate(stateSnapshot, intent)
 	end
 
 	if intent.type == "surface.open" then
-		return true, nil, {
-			makeCommand("runtime.surface.open", {
-				surface = intent.surface,
-				surfaceId = intent.surfaceId,
-			}),
-			makeCommand("state.surface.visible", {
-				id = intent.surfaceId,
-				visible = true,
-			}),
-		}
+		local commands = {}
+		local kind = getIntentKind(intent)
+		if kind == "contextMenu" then
+			local existingIds = collectVisibleSurfaceIdsByKind(stateSnapshot, "contextMenu", intent.surfaceId)
+			for _, id in ipairs(existingIds) do
+				table.insert(commands, makeCommand("runtime.surface.close", {
+					surfaceId = id,
+				}))
+				table.insert(commands, makeCommand("state.surface.visible", {
+					id = id,
+					visible = false,
+				}))
+			end
+		end
+
+		table.insert(commands, makeCommand("runtime.surface.open", {
+			surface = intent.surface,
+			surfaceId = intent.surfaceId,
+		}))
+		table.insert(commands, makeCommand("state.surface.visible", {
+			id = intent.surfaceId,
+			visible = true,
+		}))
+		return true, nil, commands
 	end
 
 	if intent.type == "surface.close" then

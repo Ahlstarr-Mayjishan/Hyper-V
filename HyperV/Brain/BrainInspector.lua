@@ -16,6 +16,26 @@ local function collectBlockedReasons(history)
 	return blocked
 end
 
+local function collectSurfaceSummary(snapshot)
+	local summary = {}
+	for _, surface in pairs(snapshot.surfaces) do
+		local kind = tostring(surface.kind or "surface")
+		local entry = summary[kind]
+		if not entry then
+			entry = {
+				total = 0,
+				visible = 0,
+			}
+			summary[kind] = entry
+		end
+		entry.total += 1
+		if surface.visible then
+			entry.visible += 1
+		end
+	end
+	return summary
+end
+
 local function collectBlockedIntents(history)
 	local blocked = {}
 	for _, entry in ipairs(history) do
@@ -58,6 +78,8 @@ local function formatState(app, brain)
 	local snapshot = brain:getStateSnapshot()
 	local authority = brain:getAuthoritySnapshot()
 	local cleanupLog = app and app._surfaceMaintenanceLog or nil
+	local cleanupHistory = app and app._surfaceMaintenanceHistory or nil
+	local surfaceSummary = collectSurfaceSummary(snapshot)
 	local lines = {
 		"Focused Surface: " .. tostring(snapshot.focusedSurfaceId or "none"),
 		"Active Modal: " .. tostring(snapshot.activeModalId or "none"),
@@ -73,6 +95,16 @@ local function formatState(app, brain)
 
 	if surfaceCount == 0 then
 		table.insert(lines, "- none")
+	end
+
+	table.insert(lines, "")
+	table.insert(lines, "Surface Summary:")
+	if next(surfaceSummary) == nil then
+		table.insert(lines, "- none")
+	else
+		for kind, info in pairs(surfaceSummary) do
+			table.insert(lines, string.format("- %s: total=%d visible=%d", kind, info.total, info.visible))
+		end
 	end
 
 	table.insert(lines, "")
@@ -147,6 +179,21 @@ local function formatState(app, brain)
 			table.insert(lines, string.format("- lastRunAt: %.2f", cleanupLog.lastRunAt or 0))
 			table.insert(lines, string.format("- handleOnlyRemoved: %d", cleanupLog.handleOnlyRemoved or 0))
 			table.insert(lines, string.format("- brainOnlyRemoved: %d", cleanupLog.brainOnlyRemoved or 0))
+		else
+			table.insert(lines, "- none")
+		end
+
+		table.insert(lines, "")
+		table.insert(lines, "Cleanup History:")
+		if cleanupHistory and #cleanupHistory > 0 then
+			for _, entry in ipairs(cleanupHistory) do
+				table.insert(lines, string.format(
+					"- %.2f h=%d b=%d",
+					entry.lastRunAt or 0,
+					entry.handleOnlyRemoved or 0,
+					entry.brainOnlyRemoved or 0
+				))
+			end
 		else
 			table.insert(lines, "- none")
 		end

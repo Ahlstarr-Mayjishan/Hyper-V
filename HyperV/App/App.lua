@@ -434,6 +434,7 @@ function App.new(config)
 		handleOnlyRemoved = 0,
 		brainOnlyRemoved = 0,
 	}
+	self._surfaceMaintenanceHistory = {}
 	local viewportConnection = nil
 	local function refreshWhitespace()
 		self._context.whitespaceScale = computeWhitespaceScale()
@@ -560,6 +561,14 @@ function App:_cleanupStaleSurfaces()
 		handleOnlyRemoved = #staleHandleIds,
 		brainOnlyRemoved = staleBrainOnlyCount,
 	}
+	table.insert(self._surfaceMaintenanceHistory, 1, {
+		lastRunAt = self._surfaceMaintenanceLog.lastRunAt,
+		handleOnlyRemoved = #staleHandleIds,
+		brainOnlyRemoved = staleBrainOnlyCount,
+	})
+	while #self._surfaceMaintenanceHistory > 6 do
+		table.remove(self._surfaceMaintenanceHistory)
+	end
 end
 
 function App:_registerStylable(stylable)
