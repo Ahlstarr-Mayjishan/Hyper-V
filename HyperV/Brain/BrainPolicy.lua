@@ -4,6 +4,7 @@ local BrainPolicy = {}
 
 local MODAL_BLOCKED_INTENTS = {
 	["surface.activate"] = true,
+	["surface.open"] = true,
 	["preview.patch"] = true,
 	["preview.set"] = true,
 	["preview.reset"] = true,
@@ -54,6 +55,32 @@ function BrainPolicy.evaluate(stateSnapshot, intent)
 			}),
 			makeCommand("state.surface.focus", {
 				id = intent.surfaceId,
+			}),
+		}
+	end
+
+	if intent.type == "surface.open" then
+		return true, nil, {
+			makeCommand("runtime.surface.open", {
+				surface = intent.surface,
+				surfaceId = intent.surfaceId,
+			}),
+			makeCommand("state.surface.visible", {
+				id = intent.surfaceId,
+				visible = true,
+			}),
+		}
+	end
+
+	if intent.type == "surface.close" then
+		return true, nil, {
+			makeCommand("runtime.surface.close", {
+				surface = intent.surface,
+				surfaceId = intent.surfaceId,
+			}),
+			makeCommand("state.surface.visible", {
+				id = intent.surfaceId,
+				visible = false,
 			}),
 		}
 	end

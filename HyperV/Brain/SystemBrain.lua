@@ -17,9 +17,14 @@ function SystemBrain.new()
 	local self = setmetatable({}, SystemBrain)
 	self._state = BrainState.new()
 	self._runtime = BrainRuntime.new()
+	self._authority = nil
 	self._history = {} :: { any }
 	self._maxHistory = 80
 	return self
+end
+
+function SystemBrain:attachAuthority(authority)
+	self._authority = authority
 end
 
 function SystemBrain:registerHandler(commandType: string, handler: (any) -> any)
@@ -35,6 +40,8 @@ function SystemBrain:_applyStateCommand(command)
 		self._state:unregisterSurface(payload.id)
 	elseif command.type == "state.surface.focus" then
 		self._state:focusSurface(payload.id)
+	elseif command.type == "state.surface.visible" then
+		self._state:setSurfaceVisible(payload.id, payload.visible)
 	elseif command.type == "state.preview.patch" then
 		self._state:patchPreview(payload.sourceId, payload.patch)
 	elseif command.type == "state.preview.set" then
@@ -84,6 +91,16 @@ end
 
 function SystemBrain:getStateSnapshot()
 	return self._state:snapshot()
+end
+
+function SystemBrain:getAuthoritySnapshot()
+	if self._authority and self._authority.getClaimsSnapshot then
+		return self._authority:getClaimsSnapshot()
+	end
+	return {
+		focus = nil,
+		claims = {},
+	}
 end
 
 function SystemBrain:getLastIntents(limit: number?)

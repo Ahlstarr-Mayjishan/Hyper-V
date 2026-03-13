@@ -13,6 +13,8 @@ export type IntentType =
 	"surface.register"
 	| "surface.unregister"
 	| "surface.activate"
+	| "surface.open"
+	| "surface.close"
 	| "preview.patch"
 	| "preview.set"
 	| "preview.reset"

@@ -254,18 +254,36 @@ function DetachedWindowHandle:applyWhitespace(scale)
 	end
 end
 
-function DetachedWindowHandle:open()
+function DetachedWindowHandle:_openRuntime()
 	self:activate()
 	self.view.Visible = true
 end
 
-function DetachedWindowHandle:close()
+function DetachedWindowHandle:open()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceOpen(self)
+		return
+	end
+	self:_openRuntime()
+end
+
+function DetachedWindowHandle:_closeRuntime()
 	self.view.Visible = false
 	if self._context.app and self._context.app.unregisterSurface then
 		self._context.app:unregisterSurface(self._dockMenuSurfaceId)
 	end
 	self._context.interactionAuthority:release("dockMenu", self._dockMenuClaimId)
 	self._context.interactionAuthority:releaseFocus(self.id)
+end
+
+function DetachedWindowHandle:close()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceClose(self)
+		return
+	end
+	self:_closeRuntime()
 end
 
 function DetachedWindowHandle:dispose()

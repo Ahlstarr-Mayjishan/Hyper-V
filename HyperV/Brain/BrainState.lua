@@ -38,6 +38,9 @@ function BrainState.new()
 end
 
 function BrainState:registerSurface(id: string, surfaceData: any)
+	if surfaceData.visible == nil then
+		surfaceData.visible = false
+	end
 	self._surfaces[id] = deepClone(surfaceData)
 end
 
@@ -57,6 +60,13 @@ function BrainState:focusSurface(id: string)
 	local surface = self._surfaces[id]
 	if surface and surface.kind == "modal" then
 		self._activeModalId = id
+	end
+end
+
+function BrainState:setSurfaceVisible(id: string, visible: boolean)
+	local surface = self._surfaces[id]
+	if surface then
+		surface.visible = visible
 	end
 end
 

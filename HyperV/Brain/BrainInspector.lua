@@ -7,6 +7,7 @@ BrainInspector.__index = BrainInspector
 
 local function formatState(brain)
 	local snapshot = brain:getStateSnapshot()
+	local authority = brain:getAuthoritySnapshot()
 	local lines = {
 		"Focused Surface: " .. tostring(snapshot.focusedSurfaceId or "none"),
 		"Active Modal: " .. tostring(snapshot.activeModalId or "none"),
@@ -22,6 +23,22 @@ local function formatState(brain)
 
 	if surfaceCount == 0 then
 		table.insert(lines, "- none")
+	end
+
+	table.insert(lines, "")
+	table.insert(lines, "Authority Claims:")
+	if authority.focus then
+		table.insert(lines, string.format("- focus: %s (p=%s)", authority.focus.id, tostring(authority.focus.priority)))
+	else
+		table.insert(lines, "- focus: none")
+	end
+	local hasClaims = false
+	for domain, claim in pairs(authority.claims) do
+		hasClaims = true
+		table.insert(lines, string.format("- %s: %s (p=%s)", domain, claim.id, tostring(claim.priority)))
+	end
+	if not hasClaims then
+		table.insert(lines, "- claims: none")
 	end
 
 	table.insert(lines, "")

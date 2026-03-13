@@ -291,6 +291,7 @@ function App.new(config)
 	self.layerAuthority = LayerAuthority.new()
 	self.protectionGate = ProtectionGate.new()
 	self.brain = SystemBrain.new()
+	self.brain:attachAuthority(self.interactionAuthority)
 	self.toolkit._interactionAuthority = self.interactionAuthority
 	self.presetRegistry = PresetRegistry.new()
 	self.commandRegistry = CommandRegistry.new()
@@ -364,6 +365,26 @@ function App.new(config)
 			})
 			self.layerAuthority:bringToFront(payload.surfaceId)
 		end
+	end)
+	self.brain:registerHandler("runtime.surface.open", function(payload)
+		local surface = payload.surface
+		if surface and surface._openRuntime then
+			return surface:_openRuntime()
+		end
+		if surface and surface.view then
+			surface.view.Visible = true
+		end
+		return nil
+	end)
+	self.brain:registerHandler("runtime.surface.close", function(payload)
+		local surface = payload.surface
+		if surface and surface._closeRuntime then
+			return surface:_closeRuntime()
+		end
+		if surface and surface.view then
+			surface.view.Visible = false
+		end
+		return nil
 	end)
 	self.brain:registerHandler("runtime.preview.patch", function(payload)
 		if payload.apply then
@@ -457,6 +478,24 @@ function App:requestSurfaceActivation(surface, priority: number?)
 		surfaceId = surface.id,
 		surface = surface,
 		priority = priority,
+	})
+end
+
+function App:requestSurfaceOpen(surface)
+	return self:_dispatchIntent({
+		type = "surface.open",
+		sourceId = surface.id,
+		surfaceId = surface.id,
+		surface = surface,
+	})
+end
+
+function App:requestSurfaceClose(surface)
+	return self:_dispatchIntent({
+		type = "surface.close",
+		sourceId = surface.id,
+		surfaceId = surface.id,
+		surface = surface,
 	})
 end
 

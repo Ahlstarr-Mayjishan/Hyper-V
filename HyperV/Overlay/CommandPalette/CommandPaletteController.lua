@@ -117,7 +117,7 @@ function CommandPaletteController:activate()
 	self:activateSurface()
 end
 
-function CommandPaletteController:open(query)
+function CommandPaletteController:_openRuntime(query)
 	self:activateSurface()
 	self._view:setVisible(true)
 	self._view:setQuery(query or "")
@@ -128,10 +128,34 @@ function CommandPaletteController:open(query)
 	end)
 end
 
-function CommandPaletteController:close()
+function CommandPaletteController:open(query)
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceOpen({
+			id = self.id,
+			view = self.view,
+			_openRuntime = function()
+				self:_openRuntime(query)
+			end,
+		})
+		return
+	end
+	self:_openRuntime(query)
+end
+
+function CommandPaletteController:_closeRuntime()
 	self._view:setVisible(false)
 	self._view.input:ReleaseFocus()
 	self._context.interactionAuthority:releaseFocus(self.id)
+end
+
+function CommandPaletteController:close()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceClose(self)
+		return
+	end
+	self:_closeRuntime()
 end
 
 function CommandPaletteController:dispose()

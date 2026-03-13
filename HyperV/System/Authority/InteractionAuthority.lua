@@ -106,4 +106,26 @@ function InteractionAuthority:clearOwner(claimantId: string)
 	self:releaseFocus(claimantId)
 end
 
+function InteractionAuthority:getClaimsSnapshot()
+	local result = {}
+	for domain, claim in pairs(self._claims) do
+		result[domain] = {
+			id = claim.id,
+			priority = claim.priority,
+			allowSteal = claim.allowSteal,
+			sequence = claim.sequence,
+		}
+	end
+	return {
+		focus = if self._focus
+			then {
+				id = self._focus.id,
+				priority = self._focus.priority,
+				sequence = self._focus.sequence,
+			}
+			else nil,
+		claims = result,
+	}
+end
+
 return InteractionAuthority
