@@ -192,12 +192,21 @@ function DetachedWindowHandle:applyLayer(baseZIndex: number)
 	LayerAuthority.applyGuiTreeZIndex(self.view, baseZIndex)
 end
 
-function DetachedWindowHandle:activate()
+function DetachedWindowHandle:_activateRuntime()
 	self._context.interactionAuthority:requestFocus({
 		id = self.id,
 		priority = 20,
 	})
 	self._context.layerAuthority:bringToFront(self.id)
+end
+
+function DetachedWindowHandle:activate()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceActivation(self, 20)
+		return
+	end
+	self:_activateRuntime()
 end
 
 function DetachedWindowHandle:applyWhitespace(scale)
@@ -230,6 +239,9 @@ function DetachedWindowHandle:close()
 end
 
 function DetachedWindowHandle:dispose()
+	if self._context.app and self._context.app.unregisterSurface then
+		self._context.app:unregisterSurface(self.id)
+	end
 	if self._responsiveCleanup then
 		self._responsiveCleanup()
 		self._responsiveCleanup = nil

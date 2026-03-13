@@ -96,12 +96,21 @@ function CommandPaletteController:applyLayer(baseZIndex: number)
 	LayerAuthority.applyGuiTreeZIndex(self._view.overlay, baseZIndex)
 end
 
-function CommandPaletteController:activateSurface()
+function CommandPaletteController:_activateRuntime()
 	self._context.interactionAuthority:requestFocus({
 		id = self.id,
 		priority = 40,
 	})
 	self._context.layerAuthority:bringToFront(self.id)
+end
+
+function CommandPaletteController:activateSurface()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceActivation(self, 40)
+		return
+	end
+	self:_activateRuntime()
 end
 
 function CommandPaletteController:activate()
@@ -126,6 +135,9 @@ function CommandPaletteController:close()
 end
 
 function CommandPaletteController:dispose()
+	if self._context.app and self._context.app.unregisterSurface then
+		self._context.app:unregisterSurface(self.id)
+	end
 	if self._layerCleanup then
 		self._layerCleanup()
 		self._layerCleanup = nil

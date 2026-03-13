@@ -177,12 +177,20 @@ function WindowController:applyLayer(baseZIndex: number)
 	LayerAuthority.applyGuiTreeZIndex(self.root, baseZIndex)
 end
 
-function WindowController:activate()
+function WindowController:_activateRuntime()
 	self.app:getInteractionAuthority():requestFocus({
 		id = self.id,
 		priority = self._surfacePriority,
 	})
 	self.app:getLayerAuthority():bringToFront(self.id)
+end
+
+function WindowController:activate()
+	if self.app.getBrain and self.app:getBrain() then
+		self.app:requestSurfaceActivation(self, self._surfacePriority)
+		return
+	end
+	self:_activateRuntime()
 end
 
 function WindowController:applyTheme(theme, layout)
@@ -304,6 +312,7 @@ function WindowController:createSection(config)
 end
 
 function WindowController:dispose()
+	self.app:unregisterSurface(self.id)
 	if self._responsiveCleanup then
 		self._responsiveCleanup()
 		self._responsiveCleanup = nil

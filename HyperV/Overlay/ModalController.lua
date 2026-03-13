@@ -54,7 +54,7 @@ function ModalController:applyLayer(baseZIndex: number)
 	end
 end
 
-function ModalController:activate()
+function ModalController:_activateRuntime()
 	self._context.interactionAuthority:tryAcquire("modal", {
 		id = self._claimId,
 		priority = 60,
@@ -65,6 +65,15 @@ function ModalController:activate()
 		priority = 60,
 	})
 	self._context.layerAuthority:bringToFront(self.id)
+end
+
+function ModalController:activate()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceActivation(self, 60)
+		return
+	end
+	self:_activateRuntime()
 end
 
 function ModalController:close()

@@ -345,6 +345,11 @@ function App.new(config)
 	})
 	self.brain:registerHandler("runtime.surface.activate", function(payload)
 		local surface = payload.surface
+		if surface and surface._activateRuntime then
+			surface:_activateRuntime(payload.priority or 0)
+			return
+		end
+
 		if surface and surface.activate then
 			surface:activate()
 			return
@@ -433,6 +438,31 @@ function App.new(config)
 	self.currentWindow = nil
 	refreshWhitespace()
 	return self
+end
+
+function App:_dispatchIntent(intent)
+	if self.brain then
+		return self.brain:dispatch(intent)
+	end
+	return nil, "System brain unavailable"
+end
+
+function App:requestSurfaceActivation(surface, priority: number?)
+	return self:_dispatchIntent({
+		type = "surface.activate",
+		sourceId = surface.id,
+		surfaceId = surface.id,
+		surface = surface,
+		priority = priority,
+	})
+end
+
+function App:unregisterSurface(surfaceId: string)
+	return self:_dispatchIntent({
+		type = "surface.unregister",
+		sourceId = surfaceId,
+		surfaceId = surfaceId,
+	})
 end
 
 function App:_registerStylable(stylable)
