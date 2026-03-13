@@ -12,6 +12,54 @@ local function isPointInsideGui(guiObject: GuiObject, position: Vector3): boolea
 		and position.Y <= (absolutePosition.Y + absoluteSize.Y)
 end
 
+local function getPopupPixelSize(guiObject: GuiObject): Vector2
+	local width = guiObject.AbsoluteSize.X
+	local height = guiObject.AbsoluteSize.Y
+
+	if width <= 0 then
+		width = guiObject.Size.X.Offset
+	end
+
+	if height <= 0 then
+		height = guiObject.Size.Y.Offset
+	end
+
+	return Vector2.new(width, height)
+end
+
+local function resolvePopupPosition(anchor: GuiObject, popup: GuiObject, parentGui: GuiObject): UDim2
+	local gap = 8
+	local popupSize = getPopupPixelSize(popup)
+	local parentPosition = parentGui.AbsolutePosition
+	local parentSize = parentGui.AbsoluteSize
+	local anchorPosition = anchor.AbsolutePosition
+	local anchorSize = anchor.AbsoluteSize
+
+	local rightX = anchorPosition.X - parentPosition.X + anchorSize.X + gap
+	local leftX = anchorPosition.X - parentPosition.X - popupSize.X - gap
+	local belowY = anchorPosition.Y - parentPosition.Y + anchorSize.Y + gap
+	local aboveY = anchorPosition.Y - parentPosition.Y - popupSize.Y - gap
+
+	local useRight = rightX + popupSize.X <= parentSize.X
+	local x = if useRight then rightX else leftX
+	if x < 0 then
+		x = math.clamp(anchorPosition.X - parentPosition.X - math.floor(popupSize.X * 0.5) + math.floor(anchorSize.X * 0.5), 0, math.max(0, parentSize.X - popupSize.X))
+	end
+
+	local useBelow = belowY + popupSize.Y <= parentSize.Y
+	local y = if useBelow then belowY else aboveY
+	if y < 0 then
+		y = math.clamp(anchorPosition.Y - parentPosition.Y, 0, math.max(0, parentSize.Y - popupSize.Y))
+	end
+
+	return UDim2.new(
+		0,
+		math.clamp(x, 0, math.max(0, parentSize.X - popupSize.X)),
+		0,
+		math.clamp(y, 0, math.max(0, parentSize.Y - popupSize.Y))
+	)
+end
+
 function ColorPickerController.new(config, context)
 	local self = setmetatable({}, ColorPickerController)
 	self._context = context
@@ -249,11 +297,7 @@ function ColorPickerController:openFor(anchor: GuiObject, value: Color3, onChang
 	self._onChanged = onChanged
 	self.view.Visible = true
 	local parentGui = self.view.Parent :: GuiObject
-	local relativeX = anchor.AbsolutePosition.X - parentGui.AbsolutePosition.X - 96
-	local relativeY = anchor.AbsolutePosition.Y - parentGui.AbsolutePosition.Y + anchor.AbsoluteSize.Y + 6
-	local maxX = math.max(0, parentGui.AbsoluteSize.X - self.view.AbsoluteSize.X)
-	local maxY = math.max(0, parentGui.AbsoluteSize.Y - self.view.AbsoluteSize.Y)
-	self.view.Position = UDim2.new(0, math.clamp(relativeX, 0, maxX), 0, math.clamp(relativeY, 0, maxY))
+	self.view.Position = resolvePopupPosition(anchor, self.view, parentGui)
 	self:setColor(value, false)
 end
 
