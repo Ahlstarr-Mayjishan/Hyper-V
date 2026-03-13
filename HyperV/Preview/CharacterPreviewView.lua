@@ -64,9 +64,19 @@ local function createSection(parent: Instance, toolkit, theme, titleText: string
 	return body
 end
 
-local function createRow(parent: Instance, theme, titleText: string, controlWidth: number?, rowHeight: number?)
+local function createRow(
+	parent: Instance,
+	theme,
+	titleText: string,
+	controlWidth: number?,
+	rowHeight: number?,
+	minLabelWidth: number?,
+	minControlWidth: number?
+)
 	local reservedWidth = controlWidth or 80
 	local height = rowHeight or 26
+	local minimumLabelWidth = minLabelWidth or 72
+	local minimumControl = minControlWidth or math.min(reservedWidth, 44)
 	local row = Instance.new("Frame")
 	row.Size = UDim2.new(1, 0, 0, height)
 	row.BackgroundTransparency = 1
@@ -92,7 +102,10 @@ local function createRow(parent: Instance, theme, titleText: string, controlWidt
 	controlHost.Parent = row
 
 	local function updateLayout()
-		local adaptiveWidth = math.min(reservedWidth, math.max(44, row.AbsoluteSize.X - 78))
+		local availableWidth = math.max(row.AbsoluteSize.X, reservedWidth + minimumLabelWidth + 10)
+		local maxControlWidth = math.max(minimumControl, availableWidth - (minimumLabelWidth + 10))
+		local adaptiveWidth = math.min(reservedWidth, maxControlWidth)
+		adaptiveWidth = math.max(minimumControl, adaptiveWidth)
 		controlHost.Size = UDim2.new(0, adaptiveWidth, 1, 0)
 		controlHost.Position = UDim2.new(1, -adaptiveWidth, 0, 0)
 		title.Size = UDim2.new(1, -(adaptiveWidth + 10), 1, 0)
@@ -201,11 +214,11 @@ local function createNumberInput(parent: Instance, toolkit, theme, titleText: st
 end
 
 local function createColorInput(parent: Instance, toolkit, theme, titleText: string, onChanged: (Color3) -> ())
-	local row, controlHost = createRow(parent, theme, titleText, 138)
+	local row, controlHost = createRow(parent, theme, titleText, 138, nil, 84, 96)
 	local host = Instance.new("Frame")
-	host.Size = UDim2.new(0, 138, 0, 22)
-	host.AnchorPoint = Vector2.new(1, 0.5)
-	host.Position = UDim2.new(1, 0, 0.5, 0)
+	host.Size = UDim2.new(1, 0, 0, 22)
+	host.AnchorPoint = Vector2.new(0, 0.5)
+	host.Position = UDim2.new(0, 0, 0.5, 0)
 	host.BackgroundTransparency = 1
 	host.Parent = controlHost
 
@@ -217,8 +230,8 @@ local function createColorInput(parent: Instance, toolkit, theme, titleText: str
 	local boxes = {}
 	local function updateBoxLayout()
 		local gap = layout.Padding.Offset
-		local width = math.max(host.AbsoluteSize.X, 42)
-		local boxWidth = math.max(26, math.floor((width - (gap * 2)) / 3))
+		local width = math.max(host.AbsoluteSize.X, 96)
+		local boxWidth = math.max(28, math.floor((width - (gap * 2)) / 3))
 		for _, box in ipairs(boxes) do
 			box.Size = UDim2.new(0, boxWidth, 0, 22)
 		end
