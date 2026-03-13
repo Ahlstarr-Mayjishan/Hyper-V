@@ -13,6 +13,19 @@ local function trimHistory(history, limit)
 	end
 end
 
+local function parsePolicyReason(reason: any): (string?, string?)
+	if type(reason) ~= "string" then
+		return nil, nil
+	end
+
+	local policyCode, message = string.match(reason, "^policy%.([%w_]+):%s*(.+)$")
+	if policyCode then
+		return policyCode, message
+	end
+
+	return nil, reason
+end
+
 function SystemBrain.new()
 	local self = setmetatable({}, SystemBrain)
 	self._state = BrainState.new()
@@ -20,6 +33,12 @@ function SystemBrain.new()
 	self._authority = nil
 	self._history = {} :: { any }
 	self._maxHistory = 80
+	self._diagnostics = {
+		lastIntent = nil,
+		lastBlocked = nil,
+		policyCounts = {} :: { [string]: number },
+		recentBlocked = {} :: { any },
+	}
 	return self
 end
 
@@ -59,10 +78,30 @@ end
 
 function SystemBrain:dispatch(intent)
 	local resolution = BrainResolver.resolve(self._state:snapshot(), intent)
+	local policyCode, policyMessage = parsePolicyReason(resolution.reason)
+	self._diagnostics.lastIntent = {
+		type = intent.type,
+		sourceId = intent.sourceId,
+		allowed = resolution.allowed,
+		policyCode = policyCode,
+		policyMessage = policyMessage,
+	}
+	if not resolution.allowed then
+		if policyCode then
+			self._diagnostics.policyCounts[policyCode] = (self._diagnostics.policyCounts[policyCode] or 0) + 1
+		end
+		self._diagnostics.lastBlocked = self._diagnostics.lastIntent
+		table.insert(self._diagnostics.recentBlocked, 1, self._diagnostics.lastIntent)
+		while #self._diagnostics.recentBlocked > 12 do
+			table.remove(self._diagnostics.recentBlocked)
+		end
+	end
 	table.insert(self._history, {
 		intent = intent,
 		allowed = resolution.allowed,
 		reason = resolution.reason,
+		policyCode = policyCode,
+		policyMessage = policyMessage,
 	})
 	trimHistory(self._history, self._maxHistory)
 
@@ -110,6 +149,31 @@ function SystemBrain:getLastIntents(limit: number?)
 		table.insert(result, self._history[index])
 	end
 	return result
+end
+
+function SystemBrain:getDiagnosticsSnapshot()
+	local policyCounts = {}
+	for key, value in pairs(self._diagnostics.policyCounts) do
+		policyCounts[key] = value
+	end
+
+	local recentBlocked = {}
+	for _, entry in ipairs(self._diagnostics.recentBlocked) do
+		table.insert(recentBlocked, {
+			type = entry.type,
+			sourceId = entry.sourceId,
+			allowed = entry.allowed,
+			policyCode = entry.policyCode,
+			policyMessage = entry.policyMessage,
+		})
+	end
+
+	return {
+		lastIntent = self._diagnostics.lastIntent,
+		lastBlocked = self._diagnostics.lastBlocked,
+		policyCounts = policyCounts,
+		recentBlocked = recentBlocked,
+	}
 end
 
 return SystemBrain

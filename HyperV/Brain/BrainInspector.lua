@@ -99,6 +99,7 @@ end
 local function formatState(app, brain)
 	local snapshot = brain:getStateSnapshot()
 	local authority = brain:getAuthoritySnapshot()
+	local diagnostics = brain.getDiagnosticsSnapshot and brain:getDiagnosticsSnapshot() or nil
 	local cleanupLog = app and app._surfaceMaintenanceLog or nil
 	local cleanupHistory = app and app._surfaceMaintenanceHistory or nil
 	local surfaceSummary = collectSurfaceSummary(snapshot)
@@ -156,6 +157,18 @@ local function formatState(app, brain)
 	else
 		for reason, count in pairs(blockedReasons) do
 			table.insert(lines, string.format("- %s x%d", reason, count))
+		end
+	end
+
+	if diagnostics then
+		table.insert(lines, "")
+		table.insert(lines, "Policy Diagnostics:")
+		if next(diagnostics.policyCounts) == nil then
+			table.insert(lines, "- none")
+		else
+			for policyCode, count in pairs(diagnostics.policyCounts) do
+				table.insert(lines, string.format("- %s x%d", tostring(policyCode), count))
+			end
 		end
 	end
 
