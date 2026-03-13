@@ -36,6 +36,28 @@ local function collectSurfaceSummary(snapshot)
 	return summary
 end
 
+local function collectIntentDomainSummary(history)
+	local summary = {}
+	for _, entry in ipairs(history) do
+		local intent = entry.intent or {}
+		local intentType = tostring(intent.type or "unknown")
+		local domain = string.match(intentType, "^(.-)%.") or intentType
+		local bucket = summary[domain]
+		if not bucket then
+			bucket = {
+				total = 0,
+				blocked = 0,
+			}
+			summary[domain] = bucket
+		end
+		bucket.total += 1
+		if not entry.allowed then
+			bucket.blocked += 1
+		end
+	end
+	return summary
+end
+
 local function collectBlockedIntents(history)
 	local blocked = {}
 	for _, entry in ipairs(history) do
@@ -126,6 +148,7 @@ local function formatState(app, brain)
 	local history = brain:getLastIntents(10)
 	local blockedReasons = collectBlockedReasons(history)
 	local blockedIntents = collectBlockedIntents(history)
+	local domainSummary = collectIntentDomainSummary(history)
 	table.insert(lines, "")
 	table.insert(lines, "Blocked Reasons:")
 	if next(blockedReasons) == nil then
@@ -133,6 +156,16 @@ local function formatState(app, brain)
 	else
 		for reason, count in pairs(blockedReasons) do
 			table.insert(lines, string.format("- %s x%d", reason, count))
+		end
+	end
+
+	table.insert(lines, "")
+	table.insert(lines, "Intent Domains:")
+	if next(domainSummary) == nil then
+		table.insert(lines, "- none")
+	else
+		for domain, info in pairs(domainSummary) do
+			table.insert(lines, string.format("- %s: total=%d blocked=%d", domain, info.total, info.blocked))
 		end
 	end
 

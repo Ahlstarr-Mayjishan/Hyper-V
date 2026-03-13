@@ -35,6 +35,27 @@ local function getIntentKind(intent)
 	return nil
 end
 
+local function getRegisteredSurface(stateSnapshot, surfaceId: string?)
+	if not surfaceId then
+		return nil
+	end
+	return stateSnapshot.surfaces[surfaceId]
+end
+
+local function isLiveSurface(intent): boolean
+	local surface = intent.surface
+	if not surface then
+		return false
+	end
+	if surface.view == nil then
+		return false
+	end
+	if typeof(surface.view) ~= "Instance" then
+		return false
+	end
+	return surface.view.Parent ~= nil
+end
+
 local function collectVisibleSurfaceIdsByKind(stateSnapshot, kind: string, excludeId: string?)
 	local ids = {}
 	for id, surface in pairs(stateSnapshot.surfaces) do
@@ -73,6 +94,23 @@ function BrainPolicy.evaluate(stateSnapshot, intent)
 	end
 
 	if intent.type == "surface.activate" then
+		local surfaceData = getRegisteredSurface(stateSnapshot, intent.surfaceId)
+		if not surfaceData then
+			return deny("surfaceUnknown", "Surface is not registered")
+		end
+		if intent.surface and not isLiveSurface(intent) then
+			return deny("surfaceDisposed", "Surface view is no longer live")
+		end
+		if surfaceData.visible ~= true then
+			return deny("surfaceHidden", "Cannot activate a hidden surface")
+		end
+		local kind = getIntentKind(intent) or surfaceData.kind
+		if kind == "contextMenu" then
+			local visibleContextMenus = collectVisibleSurfaceIdsByKind(stateSnapshot, "contextMenu", intent.surfaceId)
+			if #visibleContextMenus > 0 then
+				return deny("contextMenuExclusive", "Another context menu is already visible")
+			end
+		end
 		return true, nil, {
 			makeCommand("runtime.surface.activate", {
 				surface = intent.surface,
@@ -86,6 +124,13 @@ function BrainPolicy.evaluate(stateSnapshot, intent)
 	end
 
 	if intent.type == "surface.open" then
+		local surfaceData = getRegisteredSurface(stateSnapshot, intent.surfaceId)
+		if not surfaceData then
+			return deny("surfaceUnknown", "Surface is not registered")
+		end
+		if intent.surface and not isLiveSurface(intent) then
+			return deny("surfaceDisposed", "Surface view is no longer live")
+		end
 		local commands = {}
 		local kind = getIntentKind(intent)
 		if kind == "contextMenu" then
@@ -113,6 +158,10 @@ function BrainPolicy.evaluate(stateSnapshot, intent)
 	end
 
 	if intent.type == "surface.close" then
+		local surfaceData = getRegisteredSurface(stateSnapshot, intent.surfaceId)
+		if not surfaceData then
+			return deny("surfaceUnknown", "Surface is not registered")
+		end
 		return true, nil, {
 			makeCommand("runtime.surface.close", {
 				surface = intent.surface,
