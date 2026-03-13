@@ -21,6 +21,7 @@ function DetachedWindowHandle.new(config, context)
 	self._maxSize = config.MaxSize or Vector2.new(1440, 1040)
 	self._dockMenuClaimId = self.id .. ":dockMenu"
 	self._dockMenuSurfaceId = self.id .. ":dockMenuSurface"
+	self._surfaceRegistrationDisabled = config.RegisterSurface == false
 
 	local legacy = LegacyDetachedWindow.new({
 		Name = self.id,
@@ -228,6 +229,10 @@ function DetachedWindowHandle:_activateRuntime()
 end
 
 function DetachedWindowHandle:activate()
+	if self._activationDelegate then
+		self._activationDelegate()
+		return
+	end
 	local app = self._context.app
 	if app and app.getBrain and app:getBrain() then
 		app:requestSurfaceActivation(self, 20)
@@ -260,6 +265,10 @@ function DetachedWindowHandle:_openRuntime()
 end
 
 function DetachedWindowHandle:open()
+	if self._openDelegate then
+		self._openDelegate()
+		return
+	end
 	local app = self._context.app
 	if app and app.getBrain and app:getBrain() then
 		app:requestSurfaceOpen(self)
@@ -278,6 +287,10 @@ function DetachedWindowHandle:_closeRuntime()
 end
 
 function DetachedWindowHandle:close()
+	if self._closeDelegate then
+		self._closeDelegate()
+		return
+	end
 	local app = self._context.app
 	if app and app.getBrain and app:getBrain() then
 		app:requestSurfaceClose(self)

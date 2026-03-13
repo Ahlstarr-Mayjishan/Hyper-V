@@ -16,6 +16,22 @@ local function collectBlockedReasons(history)
 	return blocked
 end
 
+local function collectBlockedIntents(history)
+	local blocked = {}
+	for _, entry in ipairs(history) do
+		if not entry.allowed then
+			local intent = entry.intent or {}
+			table.insert(blocked, string.format(
+				"%s from %s -> %s",
+				tostring(intent.type or "unknown"),
+				tostring(intent.sourceId or "unknown"),
+				tostring(entry.reason or "unknown")
+			))
+		end
+	end
+	return blocked
+end
+
 local function collectStaleSurfaces(app, snapshot)
 	local staleBrainOnly = {}
 	local staleHandleOnly = {}
@@ -76,6 +92,7 @@ local function formatState(app, brain)
 
 	local history = brain:getLastIntents(10)
 	local blockedReasons = collectBlockedReasons(history)
+	local blockedIntents = collectBlockedIntents(history)
 	table.insert(lines, "")
 	table.insert(lines, "Blocked Reasons:")
 	if next(blockedReasons) == nil then
@@ -83,6 +100,16 @@ local function formatState(app, brain)
 	else
 		for reason, count in pairs(blockedReasons) do
 			table.insert(lines, string.format("- %s x%d", reason, count))
+		end
+	end
+
+	table.insert(lines, "")
+	table.insert(lines, "Blocked Intents:")
+	if #blockedIntents == 0 then
+		table.insert(lines, "- none")
+	else
+		for _, entry in ipairs(blockedIntents) do
+			table.insert(lines, "- " .. entry)
 		end
 	end
 

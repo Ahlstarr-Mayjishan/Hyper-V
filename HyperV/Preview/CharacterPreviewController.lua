@@ -179,13 +179,14 @@ function CharacterPreviewController.new(config, context)
 	self.previewCharacter = nil
 
 	local window = context.app:createDetachedWindow({
-		Id = self.id,
-		Name = self.id,
+		Id = self.id .. ":window",
+		Name = self.id .. ":window",
 		Title = self.title,
 		Size = config.Size or DEFAULT_SIZE,
 		Position = config.Position or context.defaultPreviewPosition,
 		Parent = config.Parent,
 		StackContent = false,
+		RegisterSurface = false,
 		OnCloseRequested = function()
 			self:_cancel()
 			return false
@@ -195,6 +196,9 @@ function CharacterPreviewController.new(config, context)
 	self.window = window
 	self.view = window.view
 	self.contentFrame = window.contentFrame
+	window._activationDelegate = function()
+		self:activate()
+	end
 	self.state = CharacterPreviewState.new(config.InitialConfig)
 	self._committedConfig = self.state:getConfig()
 	self._zoomTargetRadius = self.state:getConfig().orbit.radius
@@ -889,20 +893,65 @@ function CharacterPreviewController:applyWhitespace(scale)
 	self._view:applyWhitespace(scale)
 end
 
-function CharacterPreviewController:open()
+function CharacterPreviewController:applyLayer(baseZIndex: number)
+	self.window:applyLayer(baseZIndex)
+end
+
+function CharacterPreviewController:_activateRuntime()
+	self._context.interactionAuthority:requestFocus({
+		id = self.id,
+		priority = 20,
+	})
+	self._context.layerAuthority:bringToFront(self.id)
+end
+
+function CharacterPreviewController:activate()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceActivation(self, 20)
+		return
+	end
+	self:_activateRuntime()
+end
+
+function CharacterPreviewController:_openRuntime()
 	self:_refreshLiveCharacter()
 	self:_rebuildPreviewCharacter()
 	self:_applyVisuals(self.state:getConfig())
-	self.window:open()
+	self.window:_openRuntime()
+	self:_activateRuntime()
+end
+
+function CharacterPreviewController:open()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceOpen(self)
+		app:requestSurfaceActivation(self, 20)
+		return
+	end
+	self:_openRuntime()
+end
+
+function CharacterPreviewController:_closeRuntime()
+	self.window:_closeRuntime()
+	self._context.interactionAuthority:releaseFocus(self.id)
 end
 
 function CharacterPreviewController:close()
-	self.window:close()
+	local app = self._context.app
+	if app and app.getBrain and app:getBrain() then
+		app:requestSurfaceClose(self)
+		return
+	end
+	self:_closeRuntime()
 end
 
 function CharacterPreviewController:dispose()
 	self._rotationDragging = false
 	self._lastPointer = nil
+	if self._context.app and self._context.app.unregisterSurface then
+		self._context.app:unregisterSurface(self.id)
+	end
 	self:_clearPreviewCharacter()
 	self._disposables:cleanup()
 	self._view:dispose()

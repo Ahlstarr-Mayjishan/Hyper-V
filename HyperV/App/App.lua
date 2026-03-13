@@ -1,6 +1,7 @@
 --!strict
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local ThemeTokens = require(script.Parent.Parent.Tokens.ThemeTokens)
 local LayoutSpecs = require(script.Parent.Parent.Tokens.LayoutSpecs)
@@ -427,6 +428,7 @@ function App.new(config)
 	self.windows = {}
 	self._surfaceHandles = {}
 	self._stylables = {}
+	self._surfaceMaintenanceAccumulator = 0
 	local viewportConnection = nil
 	local function refreshWhitespace()
 		self._context.whitespaceScale = computeWhitespaceScale()
@@ -461,6 +463,13 @@ function App.new(config)
 			viewportConnection:Disconnect()
 		end
 	end
+	self._surfaceMaintenanceCleanup = RunService.Heartbeat:Connect(function(deltaTime)
+		self._surfaceMaintenanceAccumulator += deltaTime
+		if self._surfaceMaintenanceAccumulator >= 1 then
+			self._surfaceMaintenanceAccumulator = 0
+			self:_cleanupStaleSurfaces()
+		end
+	end)
 	self.currentWindow = nil
 	refreshWhitespace()
 	return self
@@ -516,6 +525,30 @@ function App:unregisterSurface(surfaceId: string)
 	})
 end
 
+function App:_cleanupStaleSurfaces()
+	local staleHandleIds = {}
+	for id, surface in pairs(self._surfaceHandles) do
+		if not surface or not surface.view or typeof(surface.view) ~= "Instance" or surface.view.Parent == nil then
+			table.insert(staleHandleIds, id)
+		end
+	end
+
+	for _, id in ipairs(staleHandleIds) do
+		self:unregisterSurface(id)
+	end
+
+	local snapshot = self.brain:getStateSnapshot()
+	for id in pairs(snapshot.surfaces) do
+		if self._surfaceHandles[id] == nil then
+			self:_dispatchIntent({
+				type = "surface.unregister",
+				sourceId = id,
+				surfaceId = id,
+			})
+		end
+	end
+end
+
 function App:_registerStylable(stylable)
 	table.insert(self._stylables, stylable)
 	if stylable.applyWhitespace then
@@ -540,13 +573,15 @@ function App:_registerSurface(surface, priority: number)
 		surface._layerCleanup()
 	end
 
-	surface._layerCleanup = self.layerAuthority:registerSurface(surface.id, priority, function(baseZIndex)
-		if surface.applyLayer then
-			surface:applyLayer(baseZIndex)
-		else
-			LayerAuthority.applyGuiTreeZIndex(surface.view, baseZIndex)
-		end
-	end)
+	if surface.registerLayer ~= false then
+		surface._layerCleanup = self.layerAuthority:registerSurface(surface.id, priority, function(baseZIndex)
+			if surface.applyLayer then
+				surface:applyLayer(baseZIndex)
+			else
+				LayerAuthority.applyGuiTreeZIndex(surface.view, baseZIndex)
+			end
+		end)
+	end
 
 	self.brain:dispatch({
 		type = "surface.register",
@@ -858,6 +893,7 @@ function App:createCharacterPreview(config)
 	})
 
 	self:_registerStylable(preview)
+	self:_registerSurface(preview, SURFACE_PRIORITY.detached)
 	self.presetRegistry:register(preview)
 	return preview
 end
@@ -920,6 +956,10 @@ function App:dispose()
 	if self._whitespaceCleanup then
 		self._whitespaceCleanup()
 		self._whitespaceCleanup = nil
+	end
+	if self._surfaceMaintenanceCleanup then
+		self._surfaceMaintenanceCleanup:Disconnect()
+		self._surfaceMaintenanceCleanup = nil
 	end
 
 	-- Clear references
