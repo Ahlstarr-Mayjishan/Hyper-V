@@ -19,6 +19,7 @@ local DetachedWindowHandle = require(script.Parent.Parent.Windowing.DetachedWind
 local WindowController = require(script.Parent.Parent.Windowing.WindowController)
 local CharacterPreviewController = require(script.Parent.Parent.Preview.CharacterPreviewController)
 local LegacyRendererFactory = require(script.Parent.Parent.Elements.LegacyRendererFactory)
+local ColorPickerController = require(script.Parent.Parent.Elements.ColorPickerController)
 local PresetManager = require(script.Parent.Parent.Elements.PresetManager)
 local BrainInspector = require(script.Parent.Parent.Brain.BrainInspector)
 local SystemBrain = require(script.Parent.Parent.Brain.SystemBrain)
@@ -873,6 +874,12 @@ end
 
 function App:createCodeBlock(config)
 	return self.legacyRendererFactory:createCodeBlock(config)
+end
+
+function App:createColorPicker(config)
+	local picker = ColorPickerController.new(config, self._context)
+	self:_registerStylable(picker)
+	return picker
 end
 
 function App:createSubTabs(config, parentOverride)

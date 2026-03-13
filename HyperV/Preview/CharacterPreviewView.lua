@@ -458,6 +458,13 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	local worldModel = Instance.new("WorldModel")
 	worldModel.Parent = viewport
 
+	local sharedColorPicker = context.app:createColorPicker({
+		Name = "PreviewColorPicker",
+		Title = "Color Picker",
+		Parent = root,
+		Default = Color3.new(1, 1, 1),
+	})
+
 	local pickerPopup = Instance.new("Frame")
 	pickerPopup.Name = "ColorPickerPopup"
 	pickerPopup.Size = UDim2.new(0, 198, 0, 208)
@@ -720,6 +727,7 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 	self._cancelButton = cancelButton
 	self._resetButton = resetButton
 	self._applyButton = applyButton
+	self._sharedColorPicker = sharedColorPicker
 
 	local function setPickerColor(value: Color3, emit: boolean)
 		self._pickerColor = value
@@ -762,42 +770,7 @@ function CharacterPreviewView.new(windowHandle, context, callbacks)
 
 	local function createPreviewColorInput(parent: Instance, titleText: string, onChanged: (Color3) -> ())
 		local row, controlHost = createRow(parent, context.theme, titleText, 36, nil, 88, 36)
-		local button = Instance.new("TextButton")
-		button.Size = UDim2.new(0, 28, 0, 22)
-		button.AnchorPoint = Vector2.new(1, 0.5)
-		button.Position = UDim2.new(1, 0, 0.5, 0)
-		button.BackgroundColor3 = Color3.new(1, 1, 1)
-		button.BorderSizePixel = 0
-		button.Text = ""
-		button.AutoButtonColor = false
-		button:SetAttribute("HyperVRole", "ColorSwatch")
-		button.Parent = controlHost
-		context.toolkit:CreateCorner(button, 6)
-		context.toolkit:CreateStroke(button, context.theme.Border)
-
-		local current = Color3.new(1, 1, 1)
-		button.MouseButton1Click:Connect(function()
-			if self._pickerPopup.Visible and self._pickerChange == onChanged then
-				hidePicker()
-				return
-			end
-			showPicker(button, current, function(nextColor)
-				current = nextColor
-				button.BackgroundColor3 = nextColor
-				onChanged(nextColor)
-			end)
-		end)
-
-		return {
-			setValue = function(_, value: Color3)
-				current = value
-				button.BackgroundColor3 = value
-				if self._pickerPopup.Visible and self._pickerChange == onChanged then
-					setPickerColor(value, false)
-				end
-			end,
-			button = button,
-		}
+		return sharedColorPicker:createSwatch(controlHost, Color3.new(1, 1, 1), onChanged)
 	end
 
 	local cameraSection = createSection(controlsPanel, context.toolkit, context.theme, "Camera")
@@ -1196,6 +1169,10 @@ function CharacterPreviewView:handleInputChanged(input: InputObject)
 		control:handleMove(input)
 	end
 
+	if self._sharedColorPicker then
+		self._sharedColorPicker:handleInputChanged(input)
+	end
+
 	if not self._pickerPopup.Visible or not self._pickerDragging then
 		return
 	end
@@ -1218,6 +1195,10 @@ function CharacterPreviewView:handleInputChanged(input: InputObject)
 end
 
 function CharacterPreviewView:handleInputBegan(input: InputObject)
+	if self._sharedColorPicker then
+		self._sharedColorPicker:handleInputBegan(input)
+	end
+
 	if not self._pickerPopup.Visible then
 		return
 	end
@@ -1250,6 +1231,10 @@ function CharacterPreviewView:handleInputBegan(input: InputObject)
 end
 
 function CharacterPreviewView:handleInputEnded(input: InputObject)
+	if self._sharedColorPicker then
+		self._sharedColorPicker:handleInputEnded(input)
+	end
+
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		self._pickerDragging = nil
 	end
@@ -1265,6 +1250,9 @@ function CharacterPreviewView:applyTheme(theme)
 	self._context.theme = theme
 	self.viewport.BackgroundColor3 = theme.Main
 	self.statusLabel.TextColor3 = theme.SecondText
+	if self._sharedColorPicker then
+		self._sharedColorPicker:applyTheme(theme)
+	end
 
 	for _, descendant in ipairs(self.root:GetDescendants()) do
 		local role = descendant:GetAttribute("HyperVRole")
@@ -1389,6 +1377,10 @@ function CharacterPreviewView:close()
 end
 
 function CharacterPreviewView:dispose()
+	if self._sharedColorPicker then
+		self._sharedColorPicker:dispose()
+		self._sharedColorPicker = nil
+	end
 	self:_hideColorPicker()
 	self.window:dispose()
 end
