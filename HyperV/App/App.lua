@@ -18,6 +18,7 @@ local LayerAuthority = require(script.Parent.Parent.System.Authority.LayerAuthor
 local ProtectionGate = require(script.Parent.Parent.System.Authority.ProtectionGate)
 local AppRuntime = require(script.Parent.AppRuntime)
 local AppFactory = require(script.Parent.AppFactory)
+local AppSurfaceRuntime = require(script.Parent.AppSurfaceRuntime)
 
 -- Core systems
 local legacyRoot = resolveLegacyRoot(script)
@@ -156,82 +157,7 @@ function App.new(config)
 	self.protectionGate:register("preview.target", {
 		validate = validatePreviewTarget,
 	})
-	self.brain:registerHandler("runtime.surface.activate", function(payload)
-		local surface = payload.surface
-		if surface and surface._activateRuntime then
-			surface:_activateRuntime(payload.priority or 0)
-			return
-		end
-
-		if surface and surface.activate then
-			surface:activate()
-			return
-		end
-
-		if payload.surfaceId then
-			self.interactionAuthority:requestFocus({
-				id = payload.surfaceId,
-				priority = payload.priority or 0,
-			})
-			self.layerAuthority:bringToFront(payload.surfaceId)
-		end
-	end)
-	self.brain:registerHandler("runtime.surface.open", function(payload)
-		local surface = payload.surface
-		if surface and surface._openRuntime then
-			return surface:_openRuntime()
-		end
-		if surface and surface.view then
-			surface.view.Visible = true
-		end
-		return nil
-	end)
-	self.brain:registerHandler("runtime.surface.close", function(payload)
-		local surface = payload.surface
-		if surface and surface._closeRuntime then
-			return surface:_closeRuntime()
-		end
-		if surface and surface.view then
-			surface.view.Visible = false
-		end
-		return nil
-	end)
-	self.brain:registerHandler("runtime.preview.patch", function(payload)
-		if payload.apply then
-			return payload.apply(payload)
-		end
-		return nil
-	end)
-	self.brain:registerHandler("runtime.preview.set", function(payload)
-		if payload.apply then
-			return payload.apply(payload)
-		end
-		return nil
-	end)
-	self.brain:registerHandler("runtime.preview.commit", function(payload)
-		if payload.apply then
-			return payload.apply(payload)
-		end
-		return nil
-	end)
-	self.brain:registerHandler("runtime.preview.target", function(payload)
-		if payload.apply then
-			return payload.apply(payload)
-		end
-		return nil
-	end)
-	self.brain:registerHandler("runtime.dock.attach", function(payload)
-		if payload.apply then
-			return payload.apply(payload)
-		end
-		return nil
-	end)
-	self.brain:registerHandler("runtime.dock.detach", function(payload)
-		if payload.apply then
-			return payload.apply(payload)
-		end
-		return nil
-	end)
+	AppSurfaceRuntime.registerBrainHandlers(self)
 	self.windows = {}
 	self._surfaceHandles = {}
 	self._stylables = {}
@@ -280,7 +206,7 @@ function App.new(config)
 		self._surfaceMaintenanceAccumulator += deltaTime
 		if self._surfaceMaintenanceAccumulator >= 1 then
 			self._surfaceMaintenanceAccumulator = 0
-			self:_cleanupStaleSurfaces()
+			AppSurfaceRuntime.cleanupStaleSurfaces(self)
 		end
 	end)
 	self.currentWindow = nil
@@ -289,150 +215,35 @@ function App.new(config)
 end
 
 function App:_dispatchIntent(intent)
-	if self.brain then
-		return self.brain:dispatch(intent)
-	end
-	return nil, "System brain unavailable"
+	return AppSurfaceRuntime.dispatchIntent(self, intent)
 end
 
 function App:requestSurfaceActivation(surface, priority: number?)
-	return self:_dispatchIntent({
-		type = "surface.activate",
-		sourceId = surface.id,
-		surfaceId = surface.id,
-		surface = surface,
-		priority = priority,
-	})
+	return AppSurfaceRuntime.requestSurfaceActivation(self, surface, priority)
 end
 
 function App:requestSurfaceOpen(surface)
-	return self:_dispatchIntent({
-		type = "surface.open",
-		sourceId = surface.id,
-		surfaceId = surface.id,
-		surface = surface,
-	})
+	return AppSurfaceRuntime.requestSurfaceOpen(self, surface)
 end
 
 function App:requestSurfaceClose(surface)
-	return self:_dispatchIntent({
-		type = "surface.close",
-		sourceId = surface.id,
-		surfaceId = surface.id,
-		surface = surface,
-	})
+	return AppSurfaceRuntime.requestSurfaceClose(self, surface)
 end
 
 function App:unregisterSurface(surfaceId: string)
-	local surface = self._surfaceHandles[surfaceId]
-	if surface and surface._layerCleanup then
-		surface._layerCleanup()
-		surface._layerCleanup = nil
-	end
-	self._surfaceHandles[surfaceId] = nil
-
-	return self:_dispatchIntent({
-		type = "surface.unregister",
-		sourceId = surfaceId,
-		surfaceId = surfaceId,
-	})
+	return AppSurfaceRuntime.unregisterSurface(self, surfaceId)
 end
 
 function App:_cleanupStaleSurfaces()
-	local staleHandleIds = {}
-	for id, surface in pairs(self._surfaceHandles) do
-		if not surface or not surface.view or typeof(surface.view) ~= "Instance" or surface.view.Parent == nil then
-			table.insert(staleHandleIds, id)
-		end
-	end
-
-	for _, id in ipairs(staleHandleIds) do
-		self:unregisterSurface(id)
-	end
-
-	local snapshot = self.brain:getStateSnapshot()
-	local staleBrainOnlyCount = 0
-	for id in pairs(snapshot.surfaces) do
-		if self._surfaceHandles[id] == nil then
-			staleBrainOnlyCount += 1
-			self:_dispatchIntent({
-				type = "surface.unregister",
-				sourceId = id,
-				surfaceId = id,
-			})
-		end
-	end
-
-	self._surfaceMaintenanceLog = {
-		lastRunAt = os.clock(),
-		handleOnlyRemoved = #staleHandleIds,
-		brainOnlyRemoved = staleBrainOnlyCount,
-	}
-	table.insert(self._surfaceMaintenanceHistory, 1, {
-		lastRunAt = self._surfaceMaintenanceLog.lastRunAt,
-		handleOnlyRemoved = #staleHandleIds,
-		brainOnlyRemoved = staleBrainOnlyCount,
-	})
-	while #self._surfaceMaintenanceHistory > 6 do
-		table.remove(self._surfaceMaintenanceHistory)
-	end
+	AppSurfaceRuntime.cleanupStaleSurfaces(self)
 end
 
 function App:_registerStylable(stylable)
-	table.insert(self._stylables, stylable)
-	if stylable.applyWhitespace then
-		stylable:applyWhitespace(self._context.whitespaceScale)
-	end
-	return stylable
+	return AppSurfaceRuntime.registerStylable(self, stylable)
 end
 
 function App:_registerSurface(surface, priority: number)
-	if not surface or not surface.view or not surface.id then
-		return surface
-	end
-
-	if surface.view:IsA("GuiObject") then
-		surface.view:SetAttribute("HyperVSurfaceId", surface.id)
-		surface.view:SetAttribute("HyperVSurfacePriority", priority)
-	end
-
-	self._surfaceHandles[surface.id] = surface
-
-	if surface._layerCleanup then
-		surface._layerCleanup()
-	end
-
-	if surface.registerLayer ~= false then
-		surface._layerCleanup = self.layerAuthority:registerSurface(surface.id, priority, function(baseZIndex)
-			if surface.applyLayer then
-				surface:applyLayer(baseZIndex)
-			else
-				LayerAuthority.applyGuiTreeZIndex(surface.view, baseZIndex)
-			end
-		end)
-	end
-
-	self.brain:dispatch({
-		type = "surface.register",
-		sourceId = surface.id,
-		surfaceId = surface.id,
-		kind = surface.kind or "surface",
-		title = surface.title,
-		priority = priority,
-		visible = if surface.view then surface.view.Visible else false,
-	})
-
-	if surface.autoActivate ~= false then
-		self.brain:dispatch({
-			type = "surface.activate",
-			sourceId = surface.id,
-			surfaceId = surface.id,
-			surface = surface,
-			priority = priority,
-		})
-	end
-
-	return surface
+	return AppSurfaceRuntime.registerSurface(self, surface, priority)
 end
 
 function App:getTheme()
