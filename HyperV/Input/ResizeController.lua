@@ -1,6 +1,7 @@
 --!strict
 
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 local resolveLegacyRoot = require(script.Parent.Parent.Legacy.LegacyRoot)
 local legacyRoot = resolveLegacyRoot(script)
 local DragLock = require(legacyRoot.core.DragLock)
@@ -16,6 +17,7 @@ export type ResizeCallbacks = {
 	onResizeStart: ((input: InputObject, startSize: Vector2) -> ())?,
 	onResize: ((input: InputObject, nextSize: Vector2, delta: Vector3) -> ())?,
 	onResizeEnd: ((input: InputObject, endSize: Vector2) -> ())?,
+	viewportMargin: number?,
 }
 
 export type ResizeHandles = {
@@ -30,6 +32,14 @@ local resizeOwnerCounter = 0
 local function createOwnerId(frame: GuiObject): string
 	resizeOwnerCounter += 1
 	return string.format("resize:%s:%d", frame.Name, resizeOwnerCounter)
+end
+
+local function getViewportSize(): Vector2
+	local camera = Workspace.CurrentCamera
+	if camera then
+		return camera.ViewportSize
+	end
+	return Vector2.new(1920, 1080)
 end
 
 function ResizeController.attach(frame: GuiObject, handles: ResizeHandles, callbacks: ResizeCallbacks?): () -> ()
@@ -148,9 +158,14 @@ function ResizeController.attach(frame: GuiObject, handles: ResizeHandles, callb
 
 		local minSize = options.minSize or Vector2.new(320, 220)
 		local maxSize = options.maxSize or Vector2.new(4096, 4096)
+		local viewport = getViewportSize()
+		local margin = options.viewportMargin or 20
+		local framePosition = frame.AbsolutePosition
+		local maxViewportWidth = math.max(minSize.X, viewport.X - framePosition.X - margin)
+		local maxViewportHeight = math.max(minSize.Y, viewport.Y - framePosition.Y - margin)
 		local clampedSize = Vector2.new(
-			math.clamp(nextWidth, minSize.X, maxSize.X),
-			math.clamp(nextHeight, minSize.Y, maxSize.Y)
+			math.clamp(nextWidth, minSize.X, math.min(maxSize.X, maxViewportWidth)),
+			math.clamp(nextHeight, minSize.Y, math.min(maxSize.Y, maxViewportHeight))
 		)
 
 		frame.Size = UDim2.new(0, clampedSize.X, 0, clampedSize.Y)

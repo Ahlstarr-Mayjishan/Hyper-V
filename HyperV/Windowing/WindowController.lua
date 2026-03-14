@@ -146,12 +146,14 @@ function WindowController:_createDefaultWindow(size: UDim2, config)
 	root.BackgroundColor3 = self.theme.Main
 	root.BorderSizePixel = 0
 	root.Parent = self.app.screenGui
+	self.app.toolkit:SetRole(root, "SurfaceRoot")
 
 	local titleBar = Instance.new("Frame")
 	titleBar.Size = UDim2.new(1, 0, 0, self.layout.TitleBarHeight)
 	titleBar.BackgroundColor3 = self.theme.Default
 	titleBar.BorderSizePixel = 0
 	titleBar.Parent = root
+	self.app.toolkit:SetRole(titleBar, "SurfaceHeader")
 	self.app.toolkit:CreateCorner(titleBar, self.layout.WindowCorner)
 
 	local title = Instance.new("TextLabel")
@@ -175,6 +177,7 @@ function WindowController:_createDefaultWindow(size: UDim2, config)
 	closeButton.TextSize = 11
 	closeButton.Font = Enum.Font.GothamBold
 	closeButton.Parent = titleBar
+	self.app.toolkit:SetRole(closeButton, "IconButton")
 	self.app.toolkit:CreateCorner(closeButton, 6)
 
 	local tabBar = Instance.new("Frame")
@@ -221,6 +224,7 @@ function WindowController:_createDefaultWindow(size: UDim2, config)
 	resizeCorner.BorderSizePixel = 0
 	resizeCorner.Active = true
 	resizeCorner.Parent = root
+	self.app.toolkit:SetRole(resizeCorner, "ResizeHandle")
 	self.app.toolkit:CreateCorner(resizeCorner, 6)
 
 	self.view = root

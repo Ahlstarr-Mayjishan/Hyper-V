@@ -6,6 +6,7 @@ local ThemeTokens = require(script.Parent.Parent.Tokens.ThemeTokens)
 local LayoutSpecs = require(script.Parent.Parent.Tokens.LayoutSpecs)
 local Utf8Text = require(script.Parent.Parent.Text.Utf8Text)
 local ElementToolkit = require(script.Parent.Parent.UI.ElementToolkit)
+local UIAttributeSystem = require(script.Parent.Parent.UI.Attributes.UIAttributeSystem)
 local PresetRegistry = require(script.Parent.Parent.Registries.PresetRegistry)
 local CommandRegistry = require(script.Parent.Parent.Registries.CommandRegistry)
 local OverlayHost = require(script.Parent.Parent.Overlay.OverlayHost)
@@ -35,6 +36,8 @@ function App.new(config)
 	self.theme = ThemeTokens.getTheme(config.Theme)
 	self.layout = LayoutSpecs.get(config.Layout)
 	self.toolkit = ElementToolkit.new()
+	self.attributeSystem = UIAttributeSystem.new(self.theme, self.layout)
+	self.toolkit._attributeSystem = self.attributeSystem
 	self.screenGui = AppRuntime.createScreenGui(config.Name or "HyperV")
 	self.interactionAuthority = InteractionAuthority.new()
 	self.layerAuthority = LayerAuthority.new()
@@ -121,6 +124,10 @@ end
 
 function App:getTheme()
 	return self.theme
+end
+
+function App:getAttributeSystem()
+	return self.attributeSystem
 end
 
 function App:setTheme(name: string)

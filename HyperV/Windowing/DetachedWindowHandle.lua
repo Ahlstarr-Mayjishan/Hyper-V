@@ -78,6 +78,7 @@ function DetachedWindowHandle.new(config, context)
 	self._resizeCorner.BorderSizePixel = 0
 	self._resizeCorner.Active = true
 	self._resizeCorner.Parent = self.view
+	context.toolkit:SetRole(self._resizeCorner, "ResizeHandle")
 	context.toolkit:CreateCorner(self._resizeCorner, 6)
 
 	self._resizeCleanup = context.toolkit:MakeResizable(self.view, {

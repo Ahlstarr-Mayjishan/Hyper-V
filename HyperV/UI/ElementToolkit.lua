@@ -20,11 +20,19 @@ function ElementToolkit.new()
 end
 
 function ElementToolkit:CreateCorner(parent: Instance, radius: number)
-	return self._style.createCorner(parent, radius)
+	local corner = self._style.createCorner(parent, radius)
+	if self._attributeSystem then
+		self._attributeSystem:bindCorner(parent, corner, radius)
+	end
+	return corner
 end
 
 function ElementToolkit:CreateStroke(parent: Instance, color: Color3, thickness: number?)
-	return self._style.createStroke(parent, color, thickness)
+	local stroke = self._style.createStroke(parent, color, thickness)
+	if self._attributeSystem then
+		self._attributeSystem:bindStroke(parent, stroke, color, thickness)
+	end
+	return stroke
 end
 
 function ElementToolkit:CreatePadding(parent: Instance, top: number?, bottom: number?, left: number?, right: number?)
@@ -81,6 +89,14 @@ end
 
 function ElementToolkit:MakeResizable(frame: GuiObject, handles, options)
 	return self._interaction.makeResizable(self._interactionAuthority, frame, handles, options)
+end
+
+function ElementToolkit:SetRole(instance: Instance, role)
+	if self._attributeSystem then
+		self._attributeSystem:setRole(instance, role)
+	else
+		instance:SetAttribute("HyperVRole", role)
+	end
 end
 
 return ElementToolkit

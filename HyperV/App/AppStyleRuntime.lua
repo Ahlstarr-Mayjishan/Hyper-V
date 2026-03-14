@@ -61,6 +61,9 @@ function AppStyleRuntime.applyTheme(app, name: string)
 	app._context.theme = app.theme
 	app.legacyRendererFactory.theme = app.theme
 	app.overlayHost._theme = app.theme
+	if app.attributeSystem then
+		app.attributeSystem:setContext(app.theme, app.layout)
+	end
 
 	local activeStylables = {}
 	for _, stylable in ipairs(app._stylables) do

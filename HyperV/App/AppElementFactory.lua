@@ -17,6 +17,7 @@ function AppElementFactory.createButton(self, config, parentOverride)
 	button.TextSize = 13
 	button.Font = Enum.Font.GothamBold
 	button.Parent = parent
+	self.toolkit:SetRole(button, "Button")
 	self.toolkit:CreateCorner(button, 8)
 	button.MouseButton1Click:Connect(function()
 		if config.OnClick then
@@ -53,6 +54,7 @@ function AppElementFactory.createLabel(self, config, parentOverride)
 	label.Font = Enum.Font.Gotham
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.Parent = parent
+	self.toolkit:SetRole(label, "FieldLabel")
 
 	return {
 		id = config.Name or "Label",

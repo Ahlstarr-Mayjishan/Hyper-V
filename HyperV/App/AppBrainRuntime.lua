@@ -76,6 +76,7 @@ function AppBrainRuntime.buildContext(app)
 		presetRegistry = app.presetRegistry,
 		commandRegistry = app.commandRegistry,
 		dockRegistry = app.dockRegistry,
+		attributeSystem = app.attributeSystem,
 		interactionAuthority = app.interactionAuthority,
 		layerAuthority = app.layerAuthority,
 		protectionGate = app.protectionGate,
