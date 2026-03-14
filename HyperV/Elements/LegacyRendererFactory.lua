@@ -1,6 +1,8 @@
 --!strict
 
+local LegacyDataFactory = require(script.Parent.Legacy.LegacyDataFactory)
 local LegacyHandleAdapter = require(script.Parent.Legacy.LegacyHandleAdapter)
+local LegacyInputFactory = require(script.Parent.Legacy.LegacyInputFactory)
 local LegacyModuleLoader = require(script.Parent.Legacy.LegacyModuleLoader)
 
 local LegacyRendererFactory = {}
@@ -30,139 +32,31 @@ function LegacyRendererFactory:_createHandle(moduleKey, config, handleSpec)
 end
 
 function LegacyRendererFactory:createNumberInput(config)
-	return self:_createHandle("numberInput", config, {
-		id = config.Name or "NumberInput",
-		kind = "numberInput",
-		title = config.Title or config.Name or "Number Input",
-		methods = {
-			getValue = "GetValue",
-			setValue = "SetValue",
-		},
-		preset = {
-			getValue = function(view)
-				return view:GetValue()
-			end,
-			applyValue = function(view, value)
-				view:SetValue(value, true)
-			end,
-		},
-	})
+	return LegacyInputFactory.createNumberInput(self, config)
 end
 
 function LegacyRendererFactory:createRangeSlider(config)
-	return self:_createHandle("rangeSlider", config, {
-		id = config.Name or "RangeSlider",
-		kind = "rangeSlider",
-		title = config.Title or config.Name or "Range Slider",
-		methods = {
-			getValue = "GetValue",
-			setValue = "SetValue",
-		},
-		preset = {
-			getValue = function(view)
-				local minValue, maxValue = view:GetValue()
-				return { minValue, maxValue }
-			end,
-			applyValue = function(view, value)
-				view:SetValue(value, true)
-			end,
-		},
-	})
+	return LegacyInputFactory.createRangeSlider(self, config)
 end
 
 function LegacyRendererFactory:createMultiSelectDropdown(config)
-	return self:_createHandle("multiSelectDropdown", config, {
-		id = config.Name or "MultiSelectDropdown",
-		kind = "multiSelectDropdown",
-		title = config.Title or config.Name or "Multi Select",
-		methods = {
-			getValue = "GetValue",
-			setValue = "SetValue",
-		},
-		preset = {
-			getValue = function(view)
-				return view:GetValue()
-			end,
-			applyValue = function(view, value)
-				view:SetValue(value, true)
-			end,
-		},
-	})
+	return LegacyInputFactory.createMultiSelectDropdown(self, config)
 end
 
 function LegacyRendererFactory:createCodeBlock(config)
-	return self:_createHandle("codeBlock", config, {
-		id = config.Name or "CodeBlock",
-		kind = "codeBlock",
-		title = config.Title or config.Name or "Code",
-		methods = {
-			getText = "GetText",
-			setText = "SetText",
-		},
-		preset = {
-			getValue = function(view)
-				return view:GetText()
-			end,
-			applyValue = function(view, value)
-				view:SetText(tostring(value))
-			end,
-		},
-	})
+	return LegacyInputFactory.createCodeBlock(self, config)
 end
 
 function LegacyRendererFactory:createSubTabs(config)
-	return self:_createHandle("subTabs", config, {
-		id = config.Name or "SubTabs",
-		kind = "subTabs",
-		title = config.Name or "SubTabs",
-		methods = {
-			select = "Select",
-			getTab = "GetTab",
-		},
-	})
+	return LegacyDataFactory.createSubTabs(self, config)
 end
 
 function LegacyRendererFactory:createVirtualList(config)
-	return self:_createHandle("virtualList", config, {
-		id = config.Name or "VirtualList",
-		kind = "virtualList",
-		title = config.Title or config.Name or "Virtual List",
-		methods = {
-			getValue = "GetValue",
-			setValue = "SetValue",
-			setItems = "SetItems",
-			addItems = "AddItems",
-			scrollToIndex = "ScrollToIndex",
-			getVisibleRange = "GetVisibleRange",
-		},
-	})
+	return LegacyDataFactory.createVirtualList(self, config)
 end
 
 function LegacyRendererFactory:createTreeView(config)
-	return self:_createHandle("treeView", config, {
-		id = config.Name or "TreeView",
-		kind = "treeView",
-		title = config.Title or config.Name or "Tree View",
-		methods = {
-			getValue = "GetValue",
-			getSelectedKey = "GetSelectedKey",
-			setValue = "SetValue",
-			setNodes = "SetNodes",
-			expand = "Expand",
-			collapse = "Collapse",
-			toggle = "Toggle",
-			expandAll = "ExpandAll",
-			collapseAll = "CollapseAll",
-		},
-		preset = {
-			getValue = function(view)
-				return view:GetSelectedKey()
-			end,
-			applyValue = function(view, value)
-				view:SetValue(value, true)
-			end,
-		},
-	})
+	return LegacyDataFactory.createTreeView(self, config)
 end
 
 return LegacyRendererFactory
