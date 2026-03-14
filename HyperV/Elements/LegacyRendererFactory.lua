@@ -1,154 +1,167 @@
 --!strict
 
+local LegacyHandleAdapter = require(script.Parent.Legacy.LegacyHandleAdapter)
+local LegacyModuleLoader = require(script.Parent.Legacy.LegacyModuleLoader)
+
 local LegacyRendererFactory = {}
 LegacyRendererFactory.__index = LegacyRendererFactory
 
 function LegacyRendererFactory.new(legacyRoot, theme, toolkit, presetRegistry)
 	return setmetatable({
-		legacyRoot = legacyRoot,
 		theme = theme,
 		toolkit = toolkit,
 		presetRegistry = presetRegistry,
-		modules = {},
+		moduleLoader = LegacyModuleLoader.new(legacyRoot),
 	}, LegacyRendererFactory)
 end
 
-function LegacyRendererFactory:_require(path: string)
-	if self.modules[path] then
-		return self.modules[path]
-	end
-
-	local node = self.legacyRoot
-	for _, part in ipairs(string.split(path, ".")) do
-		node = node[part]
-	end
-
-	local loaded = require(node)
-	self.modules[path] = loaded
-	return loaded
-end
-
-function LegacyRendererFactory:_wrap(id: string, kind: string, title: string, viewObject, options)
-	local handle = {
-		id = id,
-		kind = kind,
-		title = title,
-		view = viewObject.Container or viewObject.Frame or viewObject,
-		contentFrame = viewObject.Content or nil,
-		_impl = viewObject,
-		parentFrame = options.Parent,
-		dispose = function(selfHandle)
-			if selfHandle.view and selfHandle.view.Parent then
-				selfHandle.view:Destroy()
-			end
-		end,
-	}
-
-	setmetatable(handle, {
-		__index = function(_, key)
-			local value = viewObject[key]
-			if type(value) == "function" then
-				return function(_, ...)
-					return value(viewObject, ...)
-				end
-			end
-			return value
-		end,
-	})
-
-	if options.getPresetValue and options.applyPresetValue then
-		handle.getPresetValue = options.getPresetValue
-		handle.applyPresetValue = options.applyPresetValue
-		self.presetRegistry:register(handle)
-	end
-
-	return handle
+function LegacyRendererFactory:_createHandle(moduleKey, config, handleSpec)
+	local module = self.moduleLoader:requireModule(moduleKey)
+	local view = module.new(config, self.theme, self.toolkit)
+	return LegacyHandleAdapter.create({
+		id = handleSpec.id,
+		kind = handleSpec.kind,
+		title = handleSpec.title,
+		viewObject = view,
+		parentFrame = config.Parent,
+		methods = handleSpec.methods,
+		preset = handleSpec.preset,
+	}, self.presetRegistry)
 end
 
 function LegacyRendererFactory:createNumberInput(config)
-	local module = self:_require("elements.Basics.NumberInput")
-	local view = module.new(config, self.theme, self.toolkit)
-	return self:_wrap(config.Name or "NumberInput", "numberInput", config.Title or config.Name or "Number Input", view, {
-		Parent = config.Parent,
-		getPresetValue = function()
-			return view:GetValue()
-		end,
-		applyPresetValue = function(value)
-			view:SetValue(value, true)
-		end,
+	return self:_createHandle("numberInput", config, {
+		id = config.Name or "NumberInput",
+		kind = "numberInput",
+		title = config.Title or config.Name or "Number Input",
+		methods = {
+			getValue = "GetValue",
+			setValue = "SetValue",
+		},
+		preset = {
+			getValue = function(view)
+				return view:GetValue()
+			end,
+			applyValue = function(view, value)
+				view:SetValue(value, true)
+			end,
+		},
 	})
 end
 
 function LegacyRendererFactory:createRangeSlider(config)
-	local module = self:_require("elements.Extended.RangeSlider")
-	local view = module.new(config, self.theme, self.toolkit)
-	return self:_wrap(config.Name or "RangeSlider", "rangeSlider", config.Title or config.Name or "Range Slider", view, {
-		Parent = config.Parent,
-		getPresetValue = function()
-			local minValue, maxValue = view:GetValue()
-			return { minValue, maxValue }
-		end,
-		applyPresetValue = function(value)
-			view:SetValue(value, true)
-		end,
+	return self:_createHandle("rangeSlider", config, {
+		id = config.Name or "RangeSlider",
+		kind = "rangeSlider",
+		title = config.Title or config.Name or "Range Slider",
+		methods = {
+			getValue = "GetValue",
+			setValue = "SetValue",
+		},
+		preset = {
+			getValue = function(view)
+				local minValue, maxValue = view:GetValue()
+				return { minValue, maxValue }
+			end,
+			applyValue = function(view, value)
+				view:SetValue(value, true)
+			end,
+		},
 	})
 end
 
 function LegacyRendererFactory:createMultiSelectDropdown(config)
-	local module = self:_require("elements.Extended.MultiSelectDropdown")
-	local view = module.new(config, self.theme, self.toolkit)
-	return self:_wrap(config.Name or "MultiSelectDropdown", "multiSelectDropdown", config.Title or config.Name or "Multi Select", view, {
-		Parent = config.Parent,
-		getPresetValue = function()
-			return view:GetValue()
-		end,
-		applyPresetValue = function(value)
-			view:SetValue(value, true)
-		end,
+	return self:_createHandle("multiSelectDropdown", config, {
+		id = config.Name or "MultiSelectDropdown",
+		kind = "multiSelectDropdown",
+		title = config.Title or config.Name or "Multi Select",
+		methods = {
+			getValue = "GetValue",
+			setValue = "SetValue",
+		},
+		preset = {
+			getValue = function(view)
+				return view:GetValue()
+			end,
+			applyValue = function(view, value)
+				view:SetValue(value, true)
+			end,
+		},
 	})
 end
 
 function LegacyRendererFactory:createCodeBlock(config)
-	local module = self:_require("elements.Basics.CodeBlock")
-	local view = module.new(config, self.theme, self.toolkit)
-	return self:_wrap(config.Name or "CodeBlock", "codeBlock", config.Title or config.Name or "Code", view, {
-		Parent = config.Parent,
-		getPresetValue = function()
-			return view:GetText()
-		end,
-		applyPresetValue = function(value)
-			view:SetText(tostring(value))
-		end,
+	return self:_createHandle("codeBlock", config, {
+		id = config.Name or "CodeBlock",
+		kind = "codeBlock",
+		title = config.Title or config.Name or "Code",
+		methods = {
+			getText = "GetText",
+			setText = "SetText",
+		},
+		preset = {
+			getValue = function(view)
+				return view:GetText()
+			end,
+			applyValue = function(view, value)
+				view:SetText(tostring(value))
+			end,
+		},
 	})
 end
 
 function LegacyRendererFactory:createSubTabs(config)
-	local module = self:_require("elements.Extended.SubTabs")
-	local view = module.new(config, self.theme, self.toolkit)
-	return self:_wrap(config.Name or "SubTabs", "subTabs", config.Name or "SubTabs", view, {
-		Parent = config.Parent,
+	return self:_createHandle("subTabs", config, {
+		id = config.Name or "SubTabs",
+		kind = "subTabs",
+		title = config.Name or "SubTabs",
+		methods = {
+			select = "Select",
+			getTab = "GetTab",
+		},
 	})
 end
 
 function LegacyRendererFactory:createVirtualList(config)
-	local module = self:_require("elements.Advanced.VirtualList")
-	local view = module.new(config, self.theme, self.toolkit)
-	return self:_wrap(config.Name or "VirtualList", "virtualList", config.Title or config.Name or "Virtual List", view, {
-		Parent = config.Parent,
+	return self:_createHandle("virtualList", config, {
+		id = config.Name or "VirtualList",
+		kind = "virtualList",
+		title = config.Title or config.Name or "Virtual List",
+		methods = {
+			getValue = "GetValue",
+			setValue = "SetValue",
+			setItems = "SetItems",
+			addItems = "AddItems",
+			scrollToIndex = "ScrollToIndex",
+			getVisibleRange = "GetVisibleRange",
+		},
 	})
 end
 
 function LegacyRendererFactory:createTreeView(config)
-	local module = self:_require("elements.Advanced.TreeView")
-	local view = module.new(config, self.theme, self.toolkit)
-	return self:_wrap(config.Name or "TreeView", "treeView", config.Title or config.Name or "Tree View", view, {
-		Parent = config.Parent,
-		getPresetValue = function()
-			return view:GetSelectedKey()
-		end,
-		applyPresetValue = function(value)
-			view:SetValue(value, true)
-		end,
+	return self:_createHandle("treeView", config, {
+		id = config.Name or "TreeView",
+		kind = "treeView",
+		title = config.Title or config.Name or "Tree View",
+		methods = {
+			getValue = "GetValue",
+			getSelectedKey = "GetSelectedKey",
+			setValue = "SetValue",
+			setNodes = "SetNodes",
+			expand = "Expand",
+			collapse = "Collapse",
+			toggle = "Toggle",
+			expandAll = "ExpandAll",
+			collapseAll = "CollapseAll",
+		},
+		preset = {
+			getValue = function(view)
+				return view:GetSelectedKey()
+			end,
+			applyValue = function(view, value)
+				view:SetValue(value, true)
+			end,
+		},
 	})
 end
 
