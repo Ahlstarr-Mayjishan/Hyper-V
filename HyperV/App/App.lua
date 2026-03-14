@@ -18,7 +18,9 @@ local LayerAuthority = require(script.Parent.Parent.System.Authority.LayerAuthor
 local ProtectionGate = require(script.Parent.Parent.System.Authority.ProtectionGate)
 local AppRuntime = require(script.Parent.AppRuntime)
 local AppFactory = require(script.Parent.AppFactory)
+local AppBrainRuntime = require(script.Parent.AppBrainRuntime)
 local AppSurfaceRuntime = require(script.Parent.AppSurfaceRuntime)
+local AppStyleRuntime = require(script.Parent.AppStyleRuntime)
 
 -- Core systems
 local legacyRoot = resolveLegacyRoot(script)
@@ -27,70 +29,6 @@ local HyperVAPI = require(legacyRoot.core.API.RayfieldAPI)
 
 local App = {}
 App.__index = App
-
-local function validatePreviewTarget(request)
-	if request == nil then
-		return false, "Missing preview target request"
-	end
-
-	if request.model == nil then
-		return true, nil
-	end
-
-	if typeof(request.model) ~= "Instance" or not request.model:IsA("Model") then
-		return false, "Preview target must be a Model"
-	end
-
-	return true, nil
-end
-
-local function validatePreviewPatch(request)
-	if request == nil or type(request.sourceId) ~= "string" or type(request.patch) ~= "table" then
-		return false, "Invalid preview patch request"
-	end
-
-	return true, nil
-end
-
-local function validatePreviewConfig(request)
-	if request == nil or type(request.sourceId) ~= "string" or type(request.config) ~= "table" then
-		return false, "Invalid preview config request"
-	end
-
-	return true, nil
-end
-
-local function validatePreviewCommit(request)
-	if request == nil or type(request.sourceId) ~= "string" or type(request.snapshot) ~= "table" then
-		return false, "Invalid preview commit request"
-	end
-
-	return true, nil
-end
-
-local function validateDockAttach(request)
-	if request == nil or request.handle == nil or request.target == nil then
-		return false, "Invalid dock attach request"
-	end
-
-	if not request.handle.view or typeof(request.handle.view) ~= "Instance" then
-		return false, "Dock handle must expose a view"
-	end
-
-	if request.target.supportsHandle and request.target:supportsHandle(request.handle) == false then
-		return false, "Dock target rejected handle"
-	end
-
-	return true, nil
-end
-
-local function validateDockDetach(request)
-	if request == nil or request.handle == nil then
-		return false, "Invalid dock detach request"
-	end
-
-	return true, nil
-end
 
 function App.new(config)
 	local self = setmetatable({}, App)
@@ -102,8 +40,6 @@ function App.new(config)
 	self.layerAuthority = LayerAuthority.new()
 	self.protectionGate = ProtectionGate.new()
 	self.brain = SystemBrain.new()
-	self.brain:attachAuthority(self.interactionAuthority)
-	self.toolkit._interactionAuthority = self.interactionAuthority
 	self.presetRegistry = PresetRegistry.new()
 	self.commandRegistry = CommandRegistry.new()
 	self.dockRegistry = DockRegistry.new(self.protectionGate, self.brain)
@@ -122,41 +58,12 @@ function App.new(config)
 	self.api:SetMarker(self.gc.Marker)
 
 	self._context = {
-		app = self,
-		theme = self.theme,
-		layout = self.layout,
 		whitespaceScale = AppRuntime.computeWhitespaceScale(),
-		toolkit = self.toolkit,
-		presetRegistry = self.presetRegistry,
-		commandRegistry = self.commandRegistry,
-		dockRegistry = self.dockRegistry,
-		interactionAuthority = self.interactionAuthority,
-		layerAuthority = self.layerAuthority,
-		protectionGate = self.protectionGate,
-		brain = self.brain,
-		gc = self.gc,
-		api = self.api,
-		animation = nil :: any,
 	}
+	self._context = AppBrainRuntime.buildContext(self)
+	self._context.whitespaceScale = AppRuntime.computeWhitespaceScale()
 
-	self.protectionGate:register("dock.attach", {
-		validate = validateDockAttach,
-	})
-	self.protectionGate:register("dock.detach", {
-		validate = validateDockDetach,
-	})
-	self.protectionGate:register("preview.patch", {
-		validate = validatePreviewPatch,
-	})
-	self.protectionGate:register("preview.set", {
-		validate = validatePreviewConfig,
-	})
-	self.protectionGate:register("preview.commit", {
-		validate = validatePreviewCommit,
-	})
-	self.protectionGate:register("preview.target", {
-		validate = validatePreviewTarget,
-	})
+	AppBrainRuntime.initialize(self)
 	AppSurfaceRuntime.registerBrainHandlers(self)
 	self.windows = {}
 	self._surfaceHandles = {}
@@ -168,40 +75,7 @@ function App.new(config)
 		brainOnlyRemoved = 0,
 	}
 	self._surfaceMaintenanceHistory = {}
-	local viewportConnection = nil
-	local function refreshWhitespace()
-		self._context.whitespaceScale = AppRuntime.computeWhitespaceScale()
-		local activeStylables = {}
-		for _, stylable in ipairs(self._stylables) do
-			if stylable and stylable.view and stylable.view.Parent then
-				if stylable.applyWhitespace then
-					stylable:applyWhitespace(self._context.whitespaceScale)
-				end
-				table.insert(activeStylables, stylable)
-			end
-		end
-		self._stylables = activeStylables
-	end
-	local cameraConnection = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		if viewportConnection then
-			viewportConnection:Disconnect()
-			viewportConnection = nil
-		end
-		local camera = workspace.CurrentCamera
-		if camera then
-			viewportConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshWhitespace)
-		end
-		refreshWhitespace()
-	end)
-	if workspace.CurrentCamera then
-		viewportConnection = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshWhitespace)
-	end
-	self._whitespaceCleanup = function()
-		cameraConnection:Disconnect()
-		if viewportConnection then
-			viewportConnection:Disconnect()
-		end
-	end
+	self._whitespaceCleanup = AppStyleRuntime.attachWhitespaceObserver(self)
 	self._surfaceMaintenanceCleanup = RunService.Heartbeat:Connect(function(deltaTime)
 		self._surfaceMaintenanceAccumulator += deltaTime
 		if self._surfaceMaintenanceAccumulator >= 1 then
@@ -210,7 +84,6 @@ function App.new(config)
 		end
 	end)
 	self.currentWindow = nil
-	refreshWhitespace()
 	return self
 end
 
@@ -251,19 +124,7 @@ function App:getTheme()
 end
 
 function App:setTheme(name: string)
-	self.theme = ThemeTokens.getTheme(name)
-	self._context.theme = self.theme
-	self.legacyRendererFactory.theme = self.theme
-	self.overlayHost._theme = self.theme
-
-	local activeStylables = {}
-	for _, stylable in ipairs(self._stylables) do
-		if stylable and stylable.view and stylable.view.Parent and stylable.applyTheme then
-			stylable:applyTheme(self.theme, self.layout)
-			table.insert(activeStylables, stylable)
-		end
-	end
-	self._stylables = activeStylables
+	AppStyleRuntime.applyTheme(self, name)
 end
 
 function App:getOverlayHost()
