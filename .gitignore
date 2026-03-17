@@ -1,10 +1,11 @@
-# Project place file
-/UI roblox.rbxlx
+# Internal agent / local-only metadata
+.agent/
+.Rules for AI agent/
+.Ref Layout UI/
+.vscode/
 
-# Roblox Studio lock files
-/*.rbxlx.lock
-/*.rbxl.lock
-
-sourcemap.json
-AI_FOLDER_MAP.md
-AI_FOLDER_MAP.md
+# OS / editor noise
+Thumbs.db
+Desktop.ini
+*.tmp
+*.log
